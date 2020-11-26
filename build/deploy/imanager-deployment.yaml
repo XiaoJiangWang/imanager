@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  generation: 1
+  labels:
+    app: imanager
+    eec-app: manager-app
+  name: imanager
+  namespace: eec
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: imanager
+      eec-app: manager-app
+  strategy:
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 50%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: imanager
+        eec-app: manager-app
+    spec:
+      containers:
+        - image: 10.5.26.86:8080/zjlab/imanager:20201126
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-ec", "/home/zjlab/imanager --encryptDir ${EncryptDir} --httpport 8080 --logtostderr"]
+          name: imanager
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: "DataSource"
+              value: "root:Eec0215@tcp(10.5.26.50:10196)/default?charset=utf8"
+            - name: "EncryptDir"
+              value: "/home/zjlab/secret/"
+          volumeMounts:
+            - mountPath: /home/zjlab/secret/
+              name: keyvolume
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      nodeSelector:
+        eec-app: manager-node
+      volumes:
+        - name: keyvolume
+          secret:
+            defaultMode: 420
+            secretName: imanager
