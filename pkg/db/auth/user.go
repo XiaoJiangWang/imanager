@@ -13,7 +13,7 @@ type User struct {
 	ID        int     `json:"id" orm:"column(id);unique"`
 	UUID      string  `json:"uuid" orm:"column(uuid);unique"`
 	Name      string  `json:"name" orm:"unique"`
-	Password  string  `json:"password;type(text)"`
+	Password  string  `json:"password" orm:"type(text)"`
 	Role      []*Role `json:"role" orm:"rel(m2m)"`
 	TruthName string  `json:"truthname"`
 	Email     string  `json:"email"`

@@ -13,12 +13,14 @@ func transformUserDB2API(in authdb.User) authapi.User {
 		TruthName: in.TruthName,
 		Email:     in.Email,
 		PhoneNum:  in.PhoneNum,
-		Group: &authapi.GroupInUser{
+		Role: make([]authapi.RoleInUser, 0, len(in.Role)),
+	}
+	if in.Group != nil {
+		res.Group = &authapi.GroupInUser{
 			ID:         in.Group.Id,
 			Name:       in.Group.Name,
 			Annotation: in.Group.Annotation,
-		},
-		Role: make([]authapi.RoleInUser, 0, len(in.Role)),
+		}
 	}
 	for _, v := range in.Role {
 		res.Role = append(res.Role, authapi.RoleInUser{
@@ -38,12 +40,14 @@ func transformUserAPI2DB(in authapi.User) authdb.User {
 		TruthName: in.TruthName,
 		Email:     in.Email,
 		PhoneNum:  in.PhoneNum,
-		Group: &authdb.Group{
+		Role: make([]*authdb.Role, 0, len(in.Role)),
+	}
+	if in.Group != nil {
+		res.Group = &authdb.Group{
 			Id:         in.Group.ID,
 			Name:       in.Group.Name,
 			Annotation: in.Group.Annotation,
-		},
-		Role: make([]*authdb.Role, 0, len(in.Role)),
+		}
 	}
 	for _, v := range in.Role {
 		res.Role = append(res.Role, &authdb.Role{

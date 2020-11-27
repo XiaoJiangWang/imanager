@@ -109,10 +109,7 @@ func CreateUser(user *authapi.User) (*authapi.User, error) {
 		user.Role = DefaultRole
 	}
 
-	glog.Infof("[wxj-test]user: %#v, group: %#v", user, user.Group)
-
 	userDB := transformUserAPI2DB(*user)
-	glog.Infof("[wxj-test]userdb: %#v, group: %#v, role: %#v", userDB, userDB.Group, userDB.Role)
 	userDB, err = authdb.CreateUser(orm.NewOrm(), userDB)
 	if err != nil {
 		glog.Errorf("create user[%v] failed, err: %v", user.Name, err)
