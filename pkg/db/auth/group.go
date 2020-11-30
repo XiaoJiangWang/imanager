@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"fmt"
+
 	"github.com/astaxie/beego/orm"
 
 	"imanager/pkg/api/dataselect"
@@ -13,11 +15,29 @@ type Group struct {
 	Annotation string  `json:"annotation"`
 	Role       []*Role `json:"role" orm:"rel(m2m)"`
 	User       []*User `orm:"reverse(many)"`
+	util.BaseModel     `json:",inline"`
+}
+
+var groupExistKey = map[string]bool{
+	"id":         true,
+	"name":       true,
+	"annotation": true,
 }
 
 func GetGroupByName(o orm.Ormer, name string) (Group, error) {
 	group := Group{}
 	err := o.QueryTable(Group{}).Filter("name", name).One(&group)
+	if err != nil {
+		return group, err
+	}
+	_, err = o.LoadRelated(&group, "user")
+	if err != nil {
+		return group, err
+	}
+	_, err = o.LoadRelated(&group, "role")
+	if err != nil {
+		return group, err
+	}
 	return group, err
 }
 
@@ -38,29 +58,68 @@ func GetGroupByID(o orm.Ormer, id int) (Group, error) {
 	return group, err
 }
 
-func UpdateGroup(o orm.Ormer, group Group) error {
-	_, err := o.Update(&group)
-	return err
-}
-
-func DeleteGroupByName(o orm.Ormer, name string) error {
-	group := Group{Name: name}
-	_, err := o.Delete(&group)
-	return err
-}
-
-func CreateGroup(o orm.Ormer, group Group) (Group, error) {
-	_, err := o.Insert(group)
+func UpdateGroup(o orm.Ormer, group Group) (Group, error) {
+	var err error
+	var oldGroup Group
+	if group.Id != 0 {
+		oldGroup, err = GetGroupByID(o, group.Id)
+	} else if group.Name != "" {
+		oldGroup, err = GetGroupByName(o, group.Name)
+	} else {
+		return group, fmt.Errorf("find group by name or id failed")
+	}
 	if err != nil {
 		return group, err
 	}
-	return GetGroupByID(o, group.Id)
+	err = patch(&oldGroup, &group)
+	if err != nil {
+		return group, err
+	}
+
+	_, err = o.Update(&group)
+	if err != nil {
+		return group, err
+	}
+	return GetGroupByName(o, group.Name)
+}
+
+func DeleteGroupByName(o orm.Ormer, name string) error {
+	var err error
+	if err = o.Begin(); err != nil {
+		return err
+	}
+	group, err := GetGroupByName(o, name)
+	if err != nil {
+		_ = o.Rollback()
+		return err
+	}
+	m2m := o.QueryM2M(&group, "role")
+	for _, v := range group.Role {
+		if _, err = m2m.Remove(v); err != nil {
+			_ = o.Rollback()
+			return err
+		}
+	}
+	if _, err = o.Delete(&group); err != nil {
+		_ = o.Rollback()
+		return err
+	}
+	_ = o.Commit()
+	return nil
+}
+
+func CreateGroup(o orm.Ormer, group Group) (Group, error) {
+	_, err := o.Insert(&group)
+	if err != nil {
+		return group, err
+	}
+	return GetGroupByName(o, group.Name)
 }
 
 func ListGroup(o orm.Ormer, query *dataselect.DataSelectQuery) ([]Group, int64, error) {
 	groups := []Group{}
 	origin := o.QueryTable(Group{})
-	origin, num, err := util.PaserQuerySeter(origin, nil, query, userExistKey)
+	origin, num, err := util.PaserQuerySeter(origin, nil, query, groupExistKey)
 	if err != nil {
 		return groups, num, err
 	}

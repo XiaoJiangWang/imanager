@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"fmt"
+
 	"github.com/astaxie/beego/orm"
 	"github.com/golang/glog"
 
@@ -41,4 +43,40 @@ func GetGroupByName(name string) (authapi.Group, error) {
 	}
 	res := transformGroupDB2API(group)
 	return res, nil
+}
+
+func CreateGroup(group *authapi.Group) (*authapi.Group, error) {
+	var err error
+	groupInDB := transformGroupAPI2DB(*group)
+	groupInDB, err = authdb.CreateGroup(orm.NewOrm(), groupInDB)
+	if err != nil {
+		glog.Errorf("create group[%v] failed, err: %v", group.Name, err)
+		return nil, err
+	}
+	newGroup := transformGroupDB2API(groupInDB)
+	return &newGroup, nil
+}
+
+func UpdateGroup(group *authapi.Group) (*authapi.Group, error) {
+	var err error
+	groupInDB := transformGroupAPI2DB(*group)
+	groupInDB, err = authdb.UpdateGroup(orm.NewOrm(), groupInDB)
+	if err != nil {
+		glog.Errorf("update group[%v/%v] failed, err: %v", group.Name, group.ID, err)
+		return nil, err
+	}
+	newGroup := transformGroupDB2API(groupInDB)
+	return &newGroup, nil
+}
+
+func DeleteGroupByName(name string) error {
+	o := orm.NewOrm()
+	group, err := authdb.GetGroupByName(o, name)
+	if err != nil {
+		return err
+	}
+	if len(group.User) != 0 {
+		return fmt.Errorf("group is in use, can't delete")
+	}
+	return authdb.DeleteGroupByName(o, name)
 }

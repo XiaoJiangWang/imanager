@@ -57,5 +57,5 @@ var (
 )
 
 func (r RoleType) IsLargerPermission(other RoleType) bool {
-	return roles[r] > roles[other]
+	return roles[r] >= roles[other]
 }

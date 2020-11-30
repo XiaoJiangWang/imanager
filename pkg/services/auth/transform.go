@@ -2,7 +2,9 @@ package auth
 
 import (
 	authapi "imanager/pkg/api/auth"
+	apiutil "imanager/pkg/api/util"
 	authdb "imanager/pkg/db/auth"
+	dbutil "imanager/pkg/db/util"
 )
 
 func transformUserDB2API(in authdb.User) authapi.User {
@@ -14,6 +16,10 @@ func transformUserDB2API(in authdb.User) authapi.User {
 		Email:     in.Email,
 		PhoneNum:  in.PhoneNum,
 		Role: make([]authapi.RoleInUser, 0, len(in.Role)),
+		BaseModel: apiutil.BaseModel{
+			CreateTimestamp: in.CreateTimestamp,
+			UpdateTimestamp: in.UpdateTimestamp,
+		},
 	}
 	if in.Group != nil {
 		res.Group = &authapi.GroupInUser{
@@ -41,6 +47,10 @@ func transformUserAPI2DB(in authapi.User) authdb.User {
 		Email:     in.Email,
 		PhoneNum:  in.PhoneNum,
 		Role: make([]*authdb.Role, 0, len(in.Role)),
+		BaseModel: dbutil.BaseModel{
+			CreateTimestamp: in.CreateTimestamp,
+			UpdateTimestamp: in.UpdateTimestamp,
+		},
 	}
 	if in.Group != nil {
 		res.Group = &authdb.Group{
@@ -72,6 +82,10 @@ func transformGroupDB2API(in authdb.Group) authapi.Group {
 		ID:         in.Id,
 		Name:       in.Name,
 		Annotation: in.Annotation,
+		BaseModel: apiutil.BaseModel{
+			CreateTimestamp: in.CreateTimestamp,
+			UpdateTimestamp: in.UpdateTimestamp,
+		},
 	}
 }
 
@@ -80,6 +94,10 @@ func transformGroupAPI2DB(in authapi.Group) authdb.Group {
 		Id:         in.ID,
 		Name:       in.Name,
 		Annotation: in.Annotation,
+		BaseModel: dbutil.BaseModel{
+			CreateTimestamp: in.CreateTimestamp,
+			UpdateTimestamp: in.UpdateTimestamp,
+		},
 	}
 }
 
@@ -96,6 +114,10 @@ func transformRoleDB2API(in authdb.Role) authapi.Role {
 		ID:         in.Id,
 		Name:       in.Name,
 		Annotation: in.Annotation,
+		BaseModel: apiutil.BaseModel{
+			CreateTimestamp: in.CreateTimestamp,
+			UpdateTimestamp: in.UpdateTimestamp,
+		},
 	}
 }
 
@@ -104,6 +126,10 @@ func transformRoleAPI2DB(in authapi.Role) authdb.Role {
 		Id:         in.ID,
 		Name:       in.Name,
 		Annotation: in.Annotation,
+		BaseModel: dbutil.BaseModel{
+			CreateTimestamp: in.CreateTimestamp,
+			UpdateTimestamp: in.UpdateTimestamp,
+		},
 	}
 }
 

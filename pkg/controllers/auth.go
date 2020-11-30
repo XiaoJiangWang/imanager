@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/astaxie/beego/orm"
@@ -97,21 +97,60 @@ func hasSuperPermission(info *authapi.RespToken) bool {
 	return false
 }
 
-func validUserForCreateOrUpdate(info *authapi.RespToken, user *authapi.User) error {
-	var userUpPermission, infoUpPermission = authapi.UserRole, authapi.UserRole
-	for _, v := range user.Role {
-		if !userUpPermission.IsLargerPermission(authapi.RoleType(v.Name)) {
-			userUpPermission = authapi.RoleType(v.Name)
+var (
+	UserNameRegexp      = "^[a-zA-Z0-9-]{4,64}$"
+	PasswordRegexp      = "^[a-z0-9_-]{6,18}$"
+	UserTruthNameRegexp = `^[a-zA-Z\p{Han}]+$`
+	EmailRegexp         = `^[0-9a-z][_.0-9a-z-]{0,31}@([0-9a-z][0-9a-z-]{0,30}[0-9a-z]\.){1,4}[a-z]{2,4}$`
+	PhoneNumRegexp      = "^((13[0-9])|(14[5,7])|(15[0-3,5-9])|(17[0,3,5-8])|(18[0-9])|166|198|199|(147))\\d{8}$"
+)
+
+func validUserForCreateOrUpdate(user *authapi.User, isCreate bool) error {
+	var isMatch bool
+	if isCreate || len(user.Name) != 0 {
+		isMatch, _ = regexp.MatchString(UserNameRegexp, user.Name)
+		if !isMatch {
+			return fmt.Errorf("user name don't match the format")
 		}
 	}
-	for _, v := range info.Roles {
-		if !infoUpPermission.IsLargerPermission(authapi.RoleType(v.Name)) {
-			infoUpPermission = authapi.RoleType(v.Name)
+	if !isCreate && len(user.Name) == 0 && len(user.UUID) == 0 {
+		return fmt.Errorf("user name and uuid should not be empty at same time")
+	}
+	if isCreate || len(user.Password) != 0 {
+		isMatch, _ = regexp.MatchString(PasswordRegexp, user.Password)
+		if !isMatch {
+			return fmt.Errorf("user password don't match the format")
 		}
 	}
-	if userUpPermission.IsLargerPermission(infoUpPermission) {
-		return errors.New("permission denied")
+	if isCreate || len(user.TruthName) != 0 {
+		isMatch, _ = regexp.MatchString(UserTruthNameRegexp, user.TruthName)
+		if !isMatch {
+			return fmt.Errorf("user truth name don't match the format")
+		}
 	}
+	if isCreate || len(user.Email) != 0 {
+		isMatch, _ = regexp.MatchString(EmailRegexp, user.Email)
+		if !isMatch {
+			return fmt.Errorf("user email don't match the format")
+		}
+	}
+	if isCreate || len(user.PhoneNum) != 0 {
+		isMatch, _ = regexp.MatchString(PhoneNumRegexp, user.PhoneNum)
+		if !isMatch {
+			return fmt.Errorf("user phone num don't match the format")
+		}
+	}
+	if user.Group != nil && user.Group.ID == 0 {
+		return fmt.Errorf("group id is wrong")
+	}
+	if user.Role != nil && len(user.Role) != 0 {
+		for _, v := range user.Role {
+			if v.ID == 0 {
+				return fmt.Errorf("role id is wrong")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -139,6 +178,11 @@ func (c AuthController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body unmarshal failed, %v", err))
 		return
 	}
+	err = validUserForCreateOrUpdate(user, true)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
 	user, err = authsvc.CreateUser(user)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("create user in db failed, %v", err))
@@ -161,12 +205,6 @@ func (c AuthController) ModifyUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name := mux.Vars(r)["name"]
-	if name != info.Name && !hasSuperPermission(info) {
-		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to modify")
-		return
-	}
-
 	requestBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body read failed, %v", err))
@@ -176,6 +214,22 @@ func (c AuthController) ModifyUser(w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(requestBody, user)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body unmarshal failed, %v", err))
+		return
+	}
+	glog.Infof("username: %v, info name: %v", user.Name, info.Name)
+	if user.Name != info.Name && !hasSuperPermission(info) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to modify")
+		return
+	}
+	err = validUserForCreateOrUpdate(user, false)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
+
+	err = authsvc.IsAllowUserUpdate(user, info)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
 		return
 	}
 
@@ -202,7 +256,7 @@ func (c AuthController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 	// only op service can delete user
 	if !hasSuperPermission(info) {
-		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to delete user detail")
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to delete user")
 		return
 	}
 	name := mux.Vars(r)["name"]
@@ -275,19 +329,141 @@ func (c AuthController) ListUser(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(respBody)
 }
 
+var (
+	NameRegexp       = "^[a-zA-Z0-9-]{1,64}$"
+	AnnotationRegexp = `^[a-zA-Z0-9\p{Han}-_.,:/@#{}\\\"]+$`
+	AnnotationMaxLen = 2048
+)
+
+func validRole(role *authapi.Role) error {
+	isMatch, _ := regexp.MatchString(NameRegexp, role.Name)
+	if !isMatch {
+		return fmt.Errorf("role name don't match the format")
+	}
+	if len(role.Annotation) > AnnotationMaxLen {
+		return fmt.Errorf("role annotation too long, max length is: %v", AnnotationMaxLen)
+	}
+	isMatch, _ = regexp.MatchString(AnnotationRegexp, role.Annotation)
+	if !isMatch {
+		return fmt.Errorf("role annotation don't match the format")
+	}
+	return nil
+}
+
 func (c AuthController) CreateRole(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte("TODO"))
+	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
+	if err != nil {
+		glog.Errorf("get user info from header failed, err: %v", err)
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// only op service can create role
+	if !hasSuperPermission(info) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to create role")
+		return
+	}
+
+	requestBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body read failed, %v", err))
+		return
+	}
+	role := &authapi.Role{}
+	err = json.Unmarshal(requestBody, role)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body unmarshal failed, %v", err))
+		return
+	}
+
+	err = validRole(role)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
+
+	role, err = authsvc.CreateRole(role)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("create role in db failed, %v", err))
+		return
+	}
+	out, err := json.Marshal(role)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("marshal failed, %v", err))
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	_, _ = w.Write(out)
 }
 
 func (c AuthController) ModifyRole(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte("TODO"))
+	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
+	if err != nil {
+		glog.Errorf("get user info from header failed, err: %v", err)
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if !hasSuperPermission(info) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to modify")
+		return
+	}
+
+	requestBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body read failed, %v", err))
+		return
+	}
+	role := &authapi.Role{}
+	err = json.Unmarshal(requestBody, role)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body unmarshal failed, %v", err))
+		return
+	}
+	err = validRole(role)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
+
+	role, err = authsvc.UpdateRole(role)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("update role in db failed, %v", err))
+		return
+	}
+	out, err := json.Marshal(role)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("marshal role failed, %v", err))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
 }
 
 func (c AuthController) DeleteRole(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte("TODO"))
+	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
+	if err != nil {
+		glog.Errorf("get user info from header failed, err: %v", err)
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// only op service can delete role
+	if !hasSuperPermission(info) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to delete role")
+		return
+	}
+	name := mux.Vars(r)["name"]
+	glog.Infof("delete role[%v] by %v/%v", name, info.Name, info.UserID)
+	err = authsvc.DeleteRoleByName(name)
+	if err == orm.ErrNoRows {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "role isn't exist")
+		return
+	}
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("delete role in db failed, %v", err))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (c AuthController) GetRole(w http.ResponseWriter, r *http.Request) {
@@ -326,19 +502,135 @@ func (c AuthController) ListRole(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(respBody)
 }
 
+func validGroup(group *authapi.Group) error {
+	isMatch, _ := regexp.MatchString(NameRegexp, group.Name)
+	if !isMatch {
+		return fmt.Errorf("group name don't match the format")
+	}
+	if len(group.Annotation) > AnnotationMaxLen {
+		return fmt.Errorf("group annotation too long, max length is: %v", AnnotationMaxLen)
+	}
+	isMatch, _ = regexp.MatchString(AnnotationRegexp, group.Annotation)
+	if !isMatch {
+		return fmt.Errorf("group annotation don't match the format")
+	}
+	return nil
+}
+
 func (c AuthController) CreateGroup(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte("TODO"))
+	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
+	if err != nil {
+		glog.Errorf("get user info from header failed, err: %v", err)
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// only op service can create
+	if !hasSuperPermission(info) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to create group")
+		return
+	}
+
+	requestBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body read failed, %v", err))
+		return
+	}
+	group := &authapi.Group{}
+	err = json.Unmarshal(requestBody, group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body unmarshal failed, %v", err))
+		return
+	}
+
+	err = validGroup(group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
+
+	group, err = authsvc.CreateGroup(group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("create group in db failed, %v", err))
+		return
+	}
+	out, err := json.Marshal(group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("marshal failed, %v", err))
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	_, _ = w.Write(out)
 }
 
 func (c AuthController) ModifyGroup(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte("TODO"))
+	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
+	if err != nil {
+		glog.Errorf("get user info from header failed, err: %v", err)
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if !hasSuperPermission(info) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to modify")
+		return
+	}
+
+	requestBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body read failed, %v", err))
+		return
+	}
+	group := &authapi.Group{}
+	err = json.Unmarshal(requestBody, group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body unmarshal failed, %v", err))
+		return
+	}
+	err = validGroup(group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
+
+	group, err = authsvc.UpdateGroup(group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("update group in db failed, %v", err))
+		return
+	}
+	out, err := json.Marshal(group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("marshal failed, %v", err))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
 }
 
 func (c AuthController) DeleteGroup(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte("TODO"))
+	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
+	if err != nil {
+		glog.Errorf("get user info from header failed, err: %v", err)
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// only op service can delete group
+	if !hasSuperPermission(info) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to delete group")
+		return
+	}
+	name := mux.Vars(r)["name"]
+	glog.Infof("delete group[%v] by %v/%v", name, info.Name, info.UserID)
+	err = authsvc.DeleteGroupByName(name)
+	if err == orm.ErrNoRows {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "group isn't exist")
+		return
+	}
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("delete role in db failed, %v", err))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (c AuthController) GetGroup(w http.ResponseWriter, r *http.Request) {

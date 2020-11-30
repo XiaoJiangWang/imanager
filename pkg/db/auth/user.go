@@ -19,6 +19,7 @@ type User struct {
 	Email     string  `json:"email"`
 	PhoneNum  string  `json:"phonenum"`
 	Group     *Group  `json:"group" orm:"rel(fk)"`
+	util.BaseModel    `json:",inline"`
 }
 
 var userExistKey = map[string]bool{
@@ -84,22 +85,28 @@ func UpdateUser(o orm.Ormer, user User) (User, error) {
 
 	err = o.Begin()
 	if err != nil {
-		return user ,err
+		return user, err
 	}
 	_, err = o.Update(&user)
 	if err != nil {
 		_ = o.Rollback()
 		return user, err
 	}
-	m2m := o.QueryM2M(&user, "role")
-	for _, v := range user.Role {
-		if m2m.Exist(v) {
-			continue
-		}
-		_, err = m2m.Add(v)
-		if err != nil {
+	if HasDifferentRole(oldUser, user) {
+		m2m := o.QueryM2M(&user, "role")
+		if _, err = m2m.Clear(); err != nil {
 			_ = o.Rollback()
 			return user, err
+		}
+		for _, v := range user.Role {
+			if m2m.Exist(v) {
+				continue
+			}
+			_, err = m2m.Add(v)
+			if err != nil {
+				_ = o.Rollback()
+				return user, err
+			}
 		}
 	}
 	user, err = GetUserByName(o, user.Name)
@@ -112,16 +119,51 @@ func UpdateUser(o orm.Ormer, user User) (User, error) {
 	return user, err
 }
 
+func HasDifferentRole(oldUser, user User) bool {
+	if len(oldUser.Role) != len(user.Role) {
+		return true
+	}
+	m1 := make(map[string]bool, len(oldUser.Role))
+	for _, r := range oldUser.Role {
+		m1[r.Name] = true
+	}
+	for _, r := range user.Role {
+		if !m1[r.Name] {
+			return true
+		}
+	}
+	return false
+}
+
 func DeleteUserByName(o orm.Ormer, name string) error {
-	user := User{Name: name}
-	_, err := o.Delete(&user)
-	return err
+	var err error
+	err = o.Begin()
+	if err != nil {
+		return err
+	}
+	user, err := GetUserByName(o, name)
+	if err != nil {
+		_ = o.Rollback()
+		return err
+	}
+	m2m := o.QueryM2M(&user, "role")
+	if _, err = m2m.Clear(); err != nil {
+		_ = o.Rollback()
+		return err
+	}
+	_, err = o.Delete(&user)
+	if err != nil {
+		_ = o.Rollback()
+		return err
+	}
+	_ = o.Commit()
+	return nil
 }
 
 func CreateUser(o orm.Ormer, user User) (User, error) {
 	err := o.Begin()
 	if err != nil {
-		return user ,err
+		return user, err
 	}
 	_, err = o.Insert(&user)
 	if err != nil {

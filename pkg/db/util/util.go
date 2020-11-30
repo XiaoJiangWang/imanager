@@ -1,10 +1,17 @@
 package util
 
 import (
+	"time"
+
 	"github.com/astaxie/beego/orm"
 
 	"imanager/pkg/api/dataselect"
 )
+
+type BaseModel struct {
+	CreateTimestamp time.Time  `json:"create_timestamp" orm:"column(create_timestamp);auto_now_add"`
+	UpdateTimestamp time.Time  `json:"update_timestamp" orm:"column(update_timestamp);auto_now"`
+}
 
 func PaserQuerySeter(origin orm.QuerySeter, userIDs []string, query *dataselect.DataSelectQuery, existKey map[string]bool) (orm.QuerySeter, int64, error) {
 	if userIDs != nil && len(userIDs) != 0 {

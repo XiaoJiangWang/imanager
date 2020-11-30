@@ -1,9 +1,12 @@
 package auth
 
+import "imanager/pkg/api/util"
+
 type Role struct {
-	ID         int    `json:"id"`
-	Name       string `json:"name"`
-	Annotation string `json:"annotation"`
+	ID             int    `json:"id"`
+	Name           string `json:"name"`
+	Annotation     string `json:"annotation"`
+	util.BaseModel `json:",inline"`
 }
 
 type RoleList struct {

@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"fmt"
+
 	"github.com/astaxie/beego/orm"
 	"github.com/golang/glog"
 
@@ -31,4 +33,40 @@ func GetRoleByName(name string) (authapi.Role, error) {
 	}
 	res := transformRoleDB2API(role)
 	return res, nil
+}
+
+func CreateRole(role *authapi.Role) (*authapi.Role, error) {
+	var err error
+	roleInDB := transformRoleAPI2DB(*role)
+	roleInDB, err = authdb.CreateRole(orm.NewOrm(), roleInDB)
+	if err != nil {
+		glog.Errorf("create role[%v] failed, err: %v", role.Name, err)
+		return nil, err
+	}
+	newRole := transformRoleDB2API(roleInDB)
+	return &newRole, nil
+}
+
+func UpdateRole(role *authapi.Role) (*authapi.Role, error) {
+	var err error
+	roleInDB := transformRoleAPI2DB(*role)
+	roleInDB, err = authdb.UpdateRole(orm.NewOrm(), roleInDB)
+	if err != nil {
+		glog.Errorf("update role[%v/%v] failed, err: %v", role.Name, role.ID, err)
+		return nil, err
+	}
+	newRole := transformRoleDB2API(roleInDB)
+	return &newRole, nil
+}
+
+func DeleteRoleByName(name string) error {
+	o := orm.NewOrm()
+	role, err := authdb.GetRoleByName(o, name)
+	if err != nil {
+		return err
+	}
+	if len(role.Group) != 0 || len(role.User) != 0 {
+		return fmt.Errorf("role is in use, can't delete")
+	}
+	return authdb.DeleteRoleByName(o, name)
 }
