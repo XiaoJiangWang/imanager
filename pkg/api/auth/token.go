@@ -3,8 +3,6 @@ package auth
 import (
 	"net/http"
 	"time"
-
-	"imanager/pkg/db/auth"
 )
 
 type ReqToken struct {
@@ -27,7 +25,8 @@ type RespToken struct {
 	UserID    string       `json:"user_id"`
 	Name      string       `json:"name,omitempty"`
 	TrueName  string       `json:"true_name,omitempty"`
-	Roles     []*auth.Role `json:"roles,omitempty"`
+	Group     *GroupInUser `json:"group,omitempty"`
+	Role      []RoleInUser `json:"roles,omitempty"`
 }
 
 const TokenHeaderKey = "X-Subject-Token"

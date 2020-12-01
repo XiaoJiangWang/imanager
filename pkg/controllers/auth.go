@@ -58,7 +58,8 @@ func (c AuthController) CreateTokenInHttp(w http.ResponseWriter, r *http.Request
 		IssuedAt:  issuedAt,
 		Name:      reqToken.Auth.Name,
 		UserID:    user.UUID,
-		Roles:     user.Role,
+		Role:      user.Role,
+		Group:     user.Group,
 		TrueName:  user.TruthName,
 	}
 
@@ -88,7 +89,7 @@ func (c AuthController) CheckTokenInHttp(w http.ResponseWriter, r *http.Request)
 }
 
 func hasSuperPermission(info *authapi.RespToken) bool {
-	for _, v := range info.Roles {
+	for _, v := range info.Role {
 		if authapi.RoleType(v.Name) == authapi.OpServiceRole {
 			return true
 		}

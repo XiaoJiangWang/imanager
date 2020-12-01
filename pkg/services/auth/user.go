@@ -20,7 +20,7 @@ var (
 	DefaultRole  = []authapi.RoleInUser{{ID: 3}}
 )
 
-func ValidUserPasswordAndGetRoles(name, password string) (bool, *authdb.User, error) {
+func ValidUserPasswordAndGetRoles(name, password string) (bool, *authapi.User, error) {
 	o := orm.NewOrm()
 	user, err := authdb.GetUserByName(o, name)
 	if err == orm.ErrNoRows {
@@ -36,8 +36,9 @@ func ValidUserPasswordAndGetRoles(name, password string) (bool, *authdb.User, er
 	if user.Password != password {
 		return false, nil, nil
 	}
+	out := transformUserDB2API(user)
 
-	return true, &user, nil
+	return true, &out, nil
 }
 
 func IsAllowUserUpdate(user *authapi.User, info *authapi.RespToken) error {
@@ -55,7 +56,7 @@ func IsAllowUserUpdate(user *authapi.User, info *authapi.RespToken) error {
 			userUpPermission = authapi.RoleType(tmp.Name)
 		}
 	}
-	for _, v := range info.Roles {
+	for _, v := range info.Role {
 		if !infoUpPermission.IsLargerPermission(authapi.RoleType(v.Name)) {
 			infoUpPermission = authapi.RoleType(v.Name)
 		}
