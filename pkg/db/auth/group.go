@@ -10,18 +10,20 @@ import (
 )
 
 type Group struct {
-	Id         int     `json:"id" orm:"unique"`
-	Name       string  `json:"name" orm:"unique"`
-	Annotation string  `json:"annotation"`
-	Role       []*Role `json:"role" orm:"rel(m2m)"`
-	User       []*User `orm:"reverse(many)"`
-	util.BaseModel     `json:",inline"`
+	Id             int     `json:"id" orm:"unique"`
+	Name           string  `json:"name" orm:"unique"`
+	Annotation     string  `json:"annotation"`
+	Role           []*Role `json:"role" orm:"rel(m2m)"`
+	User           []*User `orm:"reverse(many)"`
+	util.BaseModel `json:",inline"`
 }
 
 var groupExistKey = map[string]bool{
-	"id":         true,
-	"name":       true,
-	"annotation": true,
+	"id":               true,
+	"name":             true,
+	"annotation":       true,
+	"create_timestamp": true,
+	"update_timestamp": true,
 }
 
 func GetGroupByName(o orm.Ormer, name string) (Group, error) {

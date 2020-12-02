@@ -10,18 +10,20 @@ import (
 )
 
 type Role struct {
-	Id         int      `json:"id" orm:"unique"`
-	Name       string   `json:"name" orm:"unique"`
-	Annotation string   `json:"annotation"`
-	User       []*User  `json:"-" orm:"reverse(many)"`
-	Group      []*Group `json:"-" orm:"reverse(many)"`
-	util.BaseModel      `json:",inline"`
+	Id             int      `json:"id" orm:"unique"`
+	Name           string   `json:"name" orm:"unique"`
+	Annotation     string   `json:"annotation"`
+	User           []*User  `json:"-" orm:"reverse(many)"`
+	Group          []*Group `json:"-" orm:"reverse(many)"`
+	util.BaseModel `json:",inline"`
 }
 
 var roleExistKey = map[string]bool{
-	"id":         true,
-	"name":       true,
-	"annotation": true,
+	"id":               true,
+	"name":             true,
+	"annotation":       true,
+	"create_timestamp": true,
+	"update_timestamp": true,
 }
 
 func GetRoleByName(o orm.Ormer, name string) (Role, error) {

@@ -10,25 +10,27 @@ import (
 )
 
 type User struct {
-	ID        int     `json:"id" orm:"column(id);unique"`
-	UUID      string  `json:"uuid" orm:"column(uuid);unique"`
-	Name      string  `json:"name" orm:"unique"`
-	Password  string  `json:"password" orm:"type(text)"`
-	Role      []*Role `json:"role" orm:"rel(m2m)"`
-	TruthName string  `json:"truthname"`
-	Email     string  `json:"email"`
-	PhoneNum  string  `json:"phonenum"`
-	Group     *Group  `json:"group" orm:"rel(fk)"`
-	util.BaseModel    `json:",inline"`
+	ID             int     `json:"id" orm:"column(id);unique"`
+	UUID           string  `json:"uuid" orm:"column(uuid);unique"`
+	Name           string  `json:"name" orm:"unique"`
+	Password       string  `json:"password" orm:"type(text)"`
+	Role           []*Role `json:"role" orm:"rel(m2m)"`
+	TruthName      string  `json:"truthname"`
+	Email          string  `json:"email"`
+	PhoneNum       string  `json:"phonenum"`
+	Group          *Group  `json:"group" orm:"rel(fk)"`
+	util.BaseModel `json:",inline"`
 }
 
 var userExistKey = map[string]bool{
-	"id":         true,
-	"uuid":       true,
-	"name":       true,
-	"truth_name": true,
-	"email":      true,
-	"phone_num":  true,
+	"id":               true,
+	"uuid":             true,
+	"name":             true,
+	"truth_name":       true,
+	"email":            true,
+	"phone_num":        true,
+	"create_timestamp": true,
+	"update_timestamp": true,
 }
 
 func GetUserByName(o orm.Ormer, name string) (User, error) {
