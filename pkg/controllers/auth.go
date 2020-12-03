@@ -642,12 +642,12 @@ func (c AuthController) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !hasSuperPermission(info) {
+	name := mux.Vars(r)["name"]
+	if info.Group.Name != name && !hasSuperPermission(info) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to get group detail")
 		return
 	}
 
-	name := mux.Vars(r)["name"]
 	role, err := authsvc.GetGroupByName(name)
 	if err == orm.ErrNoRows {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "group isn't exist")

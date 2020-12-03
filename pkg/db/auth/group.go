@@ -18,13 +18,21 @@ type Group struct {
 	util.BaseModel `json:",inline"`
 }
 
-var groupExistKey = map[string]bool{
-	"id":               true,
-	"name":             true,
-	"annotation":       true,
-	"create_timestamp": true,
-	"update_timestamp": true,
-}
+var (
+	groupExistKey = map[string]bool{
+		"id":               true,
+		"name":             true,
+		"annotation":       true,
+		"create_timestamp": true,
+		"update_timestamp": true,
+	}
+	groupExistM2mForeignKey = map[string]string{
+		"user__name": "user__name",
+		"user__uuid": "user__uuid",
+		"role__name": "role__role__name",
+		"role__id":   "role__role__id",
+	}
+)
 
 func GetGroupByName(o orm.Ormer, name string) (Group, error) {
 	group := Group{}
@@ -121,7 +129,7 @@ func CreateGroup(o orm.Ormer, group Group) (Group, error) {
 func ListGroup(o orm.Ormer, query *dataselect.DataSelectQuery) ([]Group, int64, error) {
 	groups := []Group{}
 	origin := o.QueryTable(Group{})
-	origin, num, err := util.PaserQuerySeter(origin, nil, query, groupExistKey)
+	origin, num, err := util.PaserQuerySeter(origin, nil, query, groupExistKey, groupExistM2mForeignKey)
 	if err != nil {
 		return groups, num, err
 	}

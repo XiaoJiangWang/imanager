@@ -9,20 +9,24 @@ import (
 )
 
 type BaseModel struct {
-	CreateTimestamp time.Time  `json:"create_timestamp" orm:"column(create_timestamp);auto_now_add"`
-	UpdateTimestamp time.Time  `json:"update_timestamp" orm:"column(update_timestamp);auto_now"`
+	CreateTimestamp time.Time `json:"create_timestamp" orm:"column(create_timestamp);auto_now_add"`
+	UpdateTimestamp time.Time `json:"update_timestamp" orm:"column(update_timestamp);auto_now"`
 }
 
-func PaserQuerySeter(origin orm.QuerySeter, userIDs []string, query *dataselect.DataSelectQuery, existKey map[string]bool) (orm.QuerySeter, int64, error) {
-	if userIDs != nil && len(userIDs) != 0 {
-		origin = origin.Filter("user_id__in", userIDs)
+func PaserQuerySeter(origin orm.QuerySeter, IDs []string, query *dataselect.DataSelectQuery, existKey map[string]bool, existM2mForeignKey map[string]string) (orm.QuerySeter, int64, error) {
+	if existM2mForeignKey == nil {
+		existM2mForeignKey = make(map[string]string)
+	}
+	if IDs != nil && len(IDs) != 0 {
+		origin = origin.Filter("uuid__in", IDs)
 	}
 	if query != nil && query.FilterQuery != nil {
 		for _, filter := range query.FilterQuery.FilterByList {
-			if !existKey[filter.Property] {
-				continue
+			if existKey[filter.Property] {
+				origin = origin.Filter(filter.Property+"__contains", filter.Value)
+			} else if _, ok := existM2mForeignKey[filter.Property]; ok {
+				origin = origin.Filter(existM2mForeignKey[filter.Property], filter.Value)
 			}
-			origin = origin.Filter(filter.Property+"__contains", filter.Value)
 		}
 	}
 	if query != nil && query.SortQuery != nil && existKey[query.SortQuery.Property] {

@@ -22,16 +22,23 @@ type User struct {
 	util.BaseModel `json:",inline"`
 }
 
-var userExistKey = map[string]bool{
-	"id":               true,
-	"uuid":             true,
-	"name":             true,
-	"truth_name":       true,
-	"email":            true,
-	"phone_num":        true,
-	"create_timestamp": true,
-	"update_timestamp": true,
-}
+var (
+	userExistKey = map[string]bool{
+		"id":               true,
+		"uuid":             true,
+		"name":             true,
+		"truth_name":       true,
+		"email":            true,
+		"phone_num":        true,
+		"create_timestamp": true,
+		"update_timestamp": true,
+		"group":            true,
+	}
+	userExistM2mForeignKey = map[string]string{
+		"role__name": "role__role__name",
+		"role__id":   "role__role__id",
+	}
+)
 
 func GetUserByName(o orm.Ormer, name string) (User, error) {
 	user := User{}
@@ -94,7 +101,7 @@ func UpdateUser(o orm.Ormer, user User) (User, error) {
 		_ = o.Rollback()
 		return user, err
 	}
-	if HasDifferentRole(oldUser, user) {
+	if hasDifferentRole(oldUser, user) {
 		m2m := o.QueryM2M(&user, "role")
 		if _, err = m2m.Clear(); err != nil {
 			_ = o.Rollback()
@@ -121,7 +128,7 @@ func UpdateUser(o orm.Ormer, user User) (User, error) {
 	return user, err
 }
 
-func HasDifferentRole(oldUser, user User) bool {
+func hasDifferentRole(oldUser, user User) bool {
 	if len(oldUser.Role) != len(user.Role) {
 		return true
 	}
@@ -197,7 +204,7 @@ func CreateUser(o orm.Ormer, user User) (User, error) {
 func ListUsersByUserIDs(o orm.Ormer, userIDs []string, query *dataselect.DataSelectQuery) ([]User, int64, error) {
 	users := []User{}
 	origin := o.QueryTable(User{})
-	origin, num, err := util.PaserQuerySeter(origin, userIDs, query, userExistKey)
+	origin, num, err := util.PaserQuerySeter(origin, userIDs, query, userExistKey, userExistM2mForeignKey)
 	if err != nil {
 		return users, 0, err
 	}

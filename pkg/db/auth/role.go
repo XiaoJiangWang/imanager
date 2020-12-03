@@ -18,13 +18,21 @@ type Role struct {
 	util.BaseModel `json:",inline"`
 }
 
-var roleExistKey = map[string]bool{
-	"id":               true,
-	"name":             true,
-	"annotation":       true,
-	"create_timestamp": true,
-	"update_timestamp": true,
-}
+var (
+	roleExistKey = map[string]bool{
+		"id":               true,
+		"name":             true,
+		"annotation":       true,
+		"create_timestamp": true,
+		"update_timestamp": true,
+	}
+	roleExistM2mForeignKey = map[string]string{
+		"user__name":  "user__user__name",
+		"user__uuid":  "user__user__uuid",
+		"group__id":   "group__group__id",
+		"group__name": "group__group__name",
+	}
+)
 
 func GetRoleByName(o orm.Ormer, name string) (Role, error) {
 	role := Role{}
@@ -102,7 +110,7 @@ func CreateRole(o orm.Ormer, role Role) (Role, error) {
 func ListRole(o orm.Ormer, query *dataselect.DataSelectQuery) ([]Role, int64, error) {
 	roles := []Role{}
 	origin := o.QueryTable(Role{})
-	origin, num, err := util.PaserQuerySeter(origin, nil, query, roleExistKey)
+	origin, num, err := util.PaserQuerySeter(origin, nil, query, roleExistKey, roleExistM2mForeignKey)
 	if err != nil {
 		return roles, num, err
 	}
