@@ -8,13 +8,12 @@ import (
 
 	authapi "imanager/pkg/api/auth"
 	"imanager/pkg/api/dataselect"
-	"imanager/pkg/db/auth"
 	authdb "imanager/pkg/db/auth"
 )
 
-func GetGroupByID(id int) (*auth.Group, error) {
+func GetGroupByID(id int) (*authdb.Group, error) {
 	o := orm.NewOrm()
-	group, err := auth.GetGroupByID(o, id)
+	group, err := authdb.GetGroupByID(o, id)
 	if err != nil {
 		return nil, err
 	}

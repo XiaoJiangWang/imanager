@@ -40,18 +40,31 @@ const GetTokenURL = "/v1/auth/tokens"
 const GetTokenMethod = http.MethodPost
 
 var (
-	OpServiceRole RoleType = "op_service"
-	AdminRole     RoleType = "admin"
-	UserRole      RoleType = "user"
+	OpServiceRole RoleType = 1
+	AdminRole     RoleType = 2
+	UserRole      RoleType = 3
 )
 
-type RoleType string
+type RoleType int
+
+func (r RoleType) String() string {
+	str, ok := rolesString[r]
+	if !ok {
+		return "invalid role type"
+	}
+	return str
+}
 
 var (
 	roles = map[RoleType]int{
 		OpServiceRole: 999,
 		AdminRole:     888,
 		UserRole:      1,
+	}
+	rolesString = map[RoleType]string {
+		OpServiceRole: "op_service",
+		AdminRole:     "admin",
+		UserRole:      "user",
 	}
 )
 

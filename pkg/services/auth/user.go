@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	DefaultGroup = &authapi.GroupInUser{ID: 1}
-	DefaultRole  = []authapi.RoleInUser{{ID: 3}}
+	DefaultGroup   = &authapi.GroupInUser{ID: 1}
+	OpServiceGroup = &authapi.GroupInUser{ID: 999}
+	DefaultRole    = []authapi.RoleInUser{{ID: 3}}
 )
 
 func ValidUserPasswordAndGetRoles(name, password string) (bool, *authapi.User, error) {
@@ -52,13 +53,13 @@ func IsAllowUserUpdate(user *authapi.User, info *authapi.RespToken) error {
 		if err != nil {
 			return fmt.Errorf("get role from db failed, %v", err)
 		}
-		if !userUpPermission.IsLargerPermission(authapi.RoleType(tmp.Name)) {
-			userUpPermission = authapi.RoleType(tmp.Name)
+		if !userUpPermission.IsLargerPermission(authapi.RoleType(tmp.Id)) {
+			userUpPermission = authapi.RoleType(tmp.Id)
 		}
 	}
 	for _, v := range info.Role {
-		if !infoUpPermission.IsLargerPermission(authapi.RoleType(v.Name)) {
-			infoUpPermission = authapi.RoleType(v.Name)
+		if !infoUpPermission.IsLargerPermission(authapi.RoleType(v.ID)) {
+			infoUpPermission = authapi.RoleType(v.ID)
 		}
 	}
 	if !infoUpPermission.IsLargerPermission(userUpPermission) {
@@ -101,7 +102,12 @@ func GetUserByName(name string) (*authapi.User, error) {
 		glog.Errorf("get user from db failed, name: %v, err: %v", name, err)
 		return nil, err
 	}
-	user.Password = ""
+	//user.Password = ""
+	user.Password, err = encrypt.Decrypt(user.Password, encrypt.CpabeType, encrypt.OpServiceRole)
+	if err != nil {
+		glog.Errorf("decrypt password failed for %v/%v, err: %v", user.Name, user.UUID, err)
+		return nil, err
+	}
 	userApi := transformUserDB2API(user)
 	return &userApi, nil
 }
@@ -123,7 +129,12 @@ func UpdateUser(user *authapi.User) (*authapi.User, error) {
 		glog.Errorf("update user[%v/%v] failed, err: %v", user.Name, user.UUID, err)
 		return nil, err
 	}
-	userDB.Password = ""
+	//userDB.Password = ""
+	userDB.Password, err = encrypt.Decrypt(userDB.Password, encrypt.CpabeType, encrypt.OpServiceRole)
+	if err != nil {
+		glog.Errorf("decrypt password failed for %v/%v, err: %v", user.Name, user.UUID, err)
+		return nil, err
+	}
 	newUser := transformUserDB2API(userDB)
 	return &newUser, nil
 }
@@ -155,7 +166,12 @@ func CreateUser(user *authapi.User) (*authapi.User, error) {
 		glog.Errorf("create user[%v] failed, err: %v", user.Name, err)
 		return nil, err
 	}
-	userDB.Password = ""
+	//userDB.Password = ""
+	userDB.Password, err = encrypt.Decrypt(userDB.Password, encrypt.CpabeType, encrypt.OpServiceRole)
+	if err != nil {
+		glog.Errorf("decrypt password failed for %v/%v, err: %v", user.Name, user.UUID, err)
+		return nil, err
+	}
 	newUser := transformUserDB2API(userDB)
 	return &newUser, nil
 }
@@ -171,7 +187,12 @@ func ListUserByUserID(userIDs []string, query *dataselect.DataSelectQuery) ([]au
 		return []authapi.User{}, 0, err
 	}
 	for k := range userInDBs {
-		userInDBs[k].Password = ""
+		//userInDBs[k].Password = ""
+		userInDBs[k].Password, err = encrypt.Decrypt(userInDBs[k].Password, encrypt.CpabeType, encrypt.OpServiceRole)
+		if err != nil {
+			glog.Errorf("decrypt password failed for %v/%v, err: %v", userInDBs[k].Name, userInDBs[k].UUID, err)
+			continue
+		}
 	}
 	res := transformUserDBs2APIs(userInDBs)
 	return res, nums, nil

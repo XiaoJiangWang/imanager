@@ -91,6 +91,9 @@ func UpdateUser(o orm.Ormer, user User) (User, error) {
 	if err != nil {
 		return user, err
 	}
+	if len(user.Role) == 0 {
+		user.Role = oldUser.Role
+	}
 
 	err = o.Begin()
 	if err != nil {

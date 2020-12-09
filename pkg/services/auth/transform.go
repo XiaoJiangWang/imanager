@@ -15,7 +15,7 @@ func transformUserDB2API(in authdb.User) authapi.User {
 		TruthName: in.TruthName,
 		Email:     in.Email,
 		PhoneNum:  in.PhoneNum,
-		Role: make([]authapi.RoleInUser, 0, len(in.Role)),
+		Role:      make([]authapi.RoleInUser, 0, len(in.Role)),
 		BaseModel: apiutil.BaseModel{
 			CreateTimestamp: in.CreateTimestamp,
 			UpdateTimestamp: in.UpdateTimestamp,
@@ -46,7 +46,7 @@ func transformUserAPI2DB(in authapi.User) authdb.User {
 		TruthName: in.TruthName,
 		Email:     in.Email,
 		PhoneNum:  in.PhoneNum,
-		Role: make([]*authdb.Role, 0, len(in.Role)),
+		Role:      make([]*authdb.Role, 0, len(in.Role)),
 		BaseModel: dbutil.BaseModel{
 			CreateTimestamp: in.CreateTimestamp,
 			UpdateTimestamp: in.UpdateTimestamp,

@@ -88,9 +88,36 @@ func (c AuthController) CheckTokenInHttp(w http.ResponseWriter, r *http.Request)
 	_, _ = w.Write(respBody)
 }
 
-func hasSuperPermission(info *authapi.RespToken) bool {
-	for _, v := range info.Role {
-		if authapi.RoleType(v.Name) == authapi.OpServiceRole {
+func getLargestRolePermission(role []authapi.RoleInUser) authapi.RoleType {
+	res := authapi.UserRole
+	if role == nil {
+		return res
+	}
+	for _, v := range role {
+		tmp := authapi.RoleType(v.ID)
+		if tmp.IsLargerPermission(res) {
+			res = tmp
+		}
+	}
+	return res
+}
+
+func isAllowedModifyUser(user *authapi.User, info *authapi.RespToken) bool {
+	largestRolePermission := getLargestRolePermission(info.Role)
+	if largestRolePermission.IsLargerPermission(authapi.OpServiceRole) {
+		return true
+	}
+	if !largestRolePermission.IsLargerPermission(authapi.AdminRole) {
+		return false
+	}
+
+	group, err:= authsvc.GetGroupByID(info.Group.ID)
+	if err != nil {
+		glog.Errorf("get detail group by id failed, user: %v/%v, group id: %v, err: %v", user.Name, user.UUID, info.Group.ID, err)
+		return false
+	}
+	for _, v := range group.User {
+		if v.Name == user.Name {
 			return true
 		}
 	}
@@ -106,7 +133,7 @@ var (
 	PhoneNumRegexp      = "^((13[0-9])|(14[5,7])|(15[0-3,5-9])|(17[0,3,5-8])|(18[0-9])|166|198|199|(147))\\d{8}$"
 )
 
-func validUserForCreateOrUpdate(user *authapi.User, isCreate bool) error {
+func validUserForCreateOrUpdate(user *authapi.User, isCreate bool, info *authapi.RespToken) error {
 	var isMatch bool
 	if isCreate || len(user.Name) != 0 {
 		isMatch, _ = regexp.MatchString(UserNameRegexp, user.Name)
@@ -141,16 +168,36 @@ func validUserForCreateOrUpdate(user *authapi.User, isCreate bool) error {
 			return fmt.Errorf("user phone num don't match the format")
 		}
 	}
-	if user.Group != nil && user.Group.ID == 0 {
-		return fmt.Errorf("group id is wrong")
-	}
-	if user.Role != nil && len(user.Role) != 0 {
-		for _, v := range user.Role {
-			if v.ID == 0 {
-				return fmt.Errorf("role id is wrong")
-			}
+
+	largestRolePermissionInInfo := getLargestRolePermission(info.Role)
+	if isCreate && user.Group == nil {
+		if largestRolePermissionInInfo == authapi.OpServiceRole {
+			user.Group = authsvc.DefaultGroup
+		} else {
+			user.Group = info.Group
 		}
 	}
+	if isCreate && user.Role == nil {
+		user.Role = authsvc.DefaultRole
+	}
+	if user.Role != nil {
+		largestRolePermissionInUser := getLargestRolePermission(user.Role)
+		if largestRolePermissionInUser == authapi.OpServiceRole {
+			user.Group = authsvc.OpServiceGroup
+		}
+		if !largestRolePermissionInInfo.IsLargerPermission(largestRolePermissionInUser) {
+			return fmt.Errorf("user's permission is not allowed more authority than info")
+		}
+	}
+
+	// op service can create user into any group and any role
+	if largestRolePermissionInInfo == authapi.OpServiceRole {
+		return nil
+	}
+	if user.Group != nil && user.Group.ID != info.Group.ID {
+		return fmt.Errorf("user's group and info's group are not allowed to differ")
+	}
+
 
 	return nil
 }
@@ -163,7 +210,7 @@ func (c AuthController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// only op service can create user
-	if !hasSuperPermission(info) {
+	if !getLargestRolePermission(info.Role).IsLargerPermission(authapi.AdminRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to create user")
 		return
 	}
@@ -179,7 +226,7 @@ func (c AuthController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("request body unmarshal failed, %v", err))
 		return
 	}
-	err = validUserForCreateOrUpdate(user, true)
+	err = validUserForCreateOrUpdate(user, true, info)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
 		return
@@ -218,11 +265,11 @@ func (c AuthController) ModifyUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	glog.Infof("username: %v, info name: %v", user.Name, info.Name)
-	if user.Name != info.Name && !hasSuperPermission(info) {
+	if user.Name != info.Name && !isAllowedModifyUser(user, info) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to modify")
 		return
 	}
-	err = validUserForCreateOrUpdate(user, false)
+	err = validUserForCreateOrUpdate(user, false, info)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
 		return
@@ -255,12 +302,13 @@ func (c AuthController) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	// only op service can delete user
-	if !hasSuperPermission(info) {
+
+	name := mux.Vars(r)["name"]
+	// only op service and admin in user's group can delete user
+	if !isAllowedModifyUser(&authapi.User{Name:name}, info) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to delete user")
 		return
 	}
-	name := mux.Vars(r)["name"]
 	glog.Infof("delete user[%v] by %v/%v", name, info.Name, info.UserID)
 	err = authsvc.DeleteUserByName(name)
 	if err == orm.ErrNoRows {
@@ -284,7 +332,7 @@ func (c AuthController) GetUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name := mux.Vars(r)["name"]
-	if name != info.Name && !hasSuperPermission(info) {
+	if name != info.Name && !getLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to get user detail")
 		return
 	}
@@ -359,7 +407,7 @@ func (c AuthController) CreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// only op service can create role
-	if !hasSuperPermission(info) {
+	if !getLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to create role")
 		return
 	}
@@ -404,7 +452,7 @@ func (c AuthController) ModifyRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !hasSuperPermission(info) {
+	if !getLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to modify")
 		return
 	}
@@ -448,7 +496,7 @@ func (c AuthController) DeleteRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// only op service can delete role
-	if !hasSuperPermission(info) {
+	if !getLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to delete role")
 		return
 	}
@@ -526,7 +574,7 @@ func (c AuthController) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// only op service can create
-	if !hasSuperPermission(info) {
+	if !getLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to create group")
 		return
 	}
@@ -571,7 +619,7 @@ func (c AuthController) ModifyGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !hasSuperPermission(info) {
+	if !getLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to modify")
 		return
 	}
@@ -615,7 +663,7 @@ func (c AuthController) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// only op service can delete group
-	if !hasSuperPermission(info) {
+	if !getLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to delete group")
 		return
 	}
@@ -643,7 +691,7 @@ func (c AuthController) GetGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name := mux.Vars(r)["name"]
-	if info.Group.Name != name && !hasSuperPermission(info) {
+	if info.Group.Name != name && !getLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to get group detail")
 		return
 	}

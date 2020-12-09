@@ -25,7 +25,7 @@ spec:
         eec-app: manager-app
     spec:
       containers:
-        - image: 10.5.26.86:8080/zjlab/imanager:20201126
+        - image: 10.5.26.86:8080/zjlab/imanager:20201204
           imagePullPolicy: IfNotPresent
           command: ["sh", "-ec", "/home/zjlab/imanager --encryptDir ${EncryptDir} --httpport 8080 --logtostderr"]
           name: imanager
