@@ -71,3 +71,17 @@ var (
 func (r RoleType) IsLargerPermission(other RoleType) bool {
 	return roles[r] >= roles[other]
 }
+
+func GetLargestRolePermission(role []RoleInUser) RoleType {
+	res := UserRole
+	if role == nil {
+		return res
+	}
+	for _, v := range role {
+		tmp := RoleType(v.ID)
+		if tmp.IsLargerPermission(res) {
+			res = tmp
+		}
+	}
+	return res
+}

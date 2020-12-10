@@ -95,19 +95,13 @@ func UpdateUser(o orm.Ormer, user User) (User, error) {
 		user.Role = oldUser.Role
 	}
 
-	err = o.Begin()
-	if err != nil {
-		return user, err
-	}
 	_, err = o.Update(&user)
 	if err != nil {
-		_ = o.Rollback()
 		return user, err
 	}
 	if hasDifferentRole(oldUser, user) {
 		m2m := o.QueryM2M(&user, "role")
 		if _, err = m2m.Clear(); err != nil {
-			_ = o.Rollback()
 			return user, err
 		}
 		for _, v := range user.Role {
@@ -116,17 +110,14 @@ func UpdateUser(o orm.Ormer, user User) (User, error) {
 			}
 			_, err = m2m.Add(v)
 			if err != nil {
-				_ = o.Rollback()
 				return user, err
 			}
 		}
 	}
 	user, err = GetUserByName(o, user.Name)
 	if err != nil {
-		_ = o.Rollback()
 		return user, err
 	}
-	_ = o.Commit()
 
 	return user, err
 }
@@ -149,37 +140,25 @@ func hasDifferentRole(oldUser, user User) bool {
 
 func DeleteUserByName(o orm.Ormer, name string) error {
 	var err error
-	err = o.Begin()
-	if err != nil {
-		return err
-	}
 	user, err := GetUserByName(o, name)
 	if err != nil {
-		_ = o.Rollback()
 		return err
 	}
 	m2m := o.QueryM2M(&user, "role")
 	if _, err = m2m.Clear(); err != nil {
-		_ = o.Rollback()
 		return err
 	}
 	_, err = o.Delete(&user)
 	if err != nil {
-		_ = o.Rollback()
 		return err
 	}
-	_ = o.Commit()
 	return nil
 }
 
 func CreateUser(o orm.Ormer, user User) (User, error) {
-	err := o.Begin()
-	if err != nil {
-		return user, err
-	}
+	var err error
 	_, err = o.Insert(&user)
 	if err != nil {
-		_ = o.Rollback()
 		return user, err
 	}
 
@@ -190,17 +169,14 @@ func CreateUser(o orm.Ormer, user User) (User, error) {
 		}
 		_, err = m2m.Add(v)
 		if err != nil {
-			_ = o.Rollback()
 			return user, err
 		}
 	}
 
 	user, err = GetUserByName(o, user.Name)
 	if err != nil {
-		_ = o.Rollback()
 		return user, err
 	}
-	_ = o.Commit()
 	return user, err
 }
 

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/golang/glog"
 )
@@ -67,6 +68,16 @@ func setValues() {
 	}
 	if encryptDir != "" {
 		_ = c.Set(EncryptDirKey, encryptDir)
+	}
+
+	// set all env into config
+	environ := os.Environ()
+	for _, v := range environ {
+		strs := strings.Split(v, "=")
+		if len(strs) != 2 {
+			continue
+		}
+		_ = c.Set(strs[0], strs[1])
 	}
 }
 

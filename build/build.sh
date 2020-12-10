@@ -39,7 +39,7 @@ makeDockerImage() {
 }
 
 pushDockerImage() {
-  docker login "${dockerHub}" -u wangxj --password Harbor123456
+  docker login "${dockerHub}" -u wangxj --password Eec123456
   docker tag zjlab/imanager:"${imageVersion}" "${dockerHub}"/zjlab/imanager:"${imageVersion}"
   docker push "${dockerHub}"/zjlab/imanager:"${imageVersion}"
   docker logout "${dockerHub}"

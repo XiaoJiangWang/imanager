@@ -37,6 +37,12 @@ spec:
               value: "root:Eec0215@tcp(10.5.26.50:10196)/default?charset=utf8"
             - name: "EncryptDir"
               value: "/home/zjlab/secret/"
+            - name: "HarborAddress"
+              value: "http://10.5.26.86:8080"
+            - name: "HarborUser"
+              value: "admin"
+            - name: "HarborPassword"
+              value: "Harbor12345"
           volumeMounts:
             - mountPath: /home/zjlab/secret/
               name: keyvolume

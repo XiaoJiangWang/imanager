@@ -13,6 +13,7 @@ import (
 	"imanager/pkg/api/dataselect"
 	authdb "imanager/pkg/db/auth"
 	"imanager/pkg/encrypt"
+	"imanager/pkg/services/util"
 )
 
 var (
@@ -114,6 +115,7 @@ func GetUserByName(name string) (*authapi.User, error) {
 
 func UpdateUser(user *authapi.User) (*authapi.User, error) {
 	var err error
+	newPassword := user.Password
 	if len(user.Password) != 0 {
 		user.Password, err = encrypt.Encrypt(user.Password, encrypt.CpabeType, encrypt.OpServiceRole)
 		if err != nil {
@@ -124,11 +126,59 @@ func UpdateUser(user *authapi.User) (*authapi.User, error) {
 
 	userDB := transformUserAPI2DB(*user)
 	o := orm.NewOrm()
+	err = o.Begin()
+	if err != nil {
+		return user, err
+	}
+
+	var oldUser authdb.User
+	if userDB.UUID != "" {
+		oldUser, err = authdb.GetUserByUUID(o, userDB.UUID)
+	} else if userDB.Name != "" {
+		oldUser, err = authdb.GetUserByName(o, userDB.Name)
+	} else {
+		_ = o.Commit()
+		glog.Errorf("find user by name or uuid failed")
+		return user, fmt.Errorf("find user by name or uuid failed")
+	}
+	if err != nil {
+		_ = o.Rollback()
+		return user, err
+	}
+
+	err = util.Patch(&oldUser, &userDB)
+	if err != nil {
+		_ = o.Rollback()
+		return user, err
+	}
+	if len(userDB.Role) == 0 {
+		userDB.Role = oldUser.Role
+	}
+
 	userDB, err = authdb.UpdateUser(o, userDB)
 	if err != nil {
+		_ = o.Rollback()
 		glog.Errorf("update user[%v/%v] failed, err: %v", user.Name, user.UUID, err)
 		return nil, err
 	}
+
+	// update in harbor
+	userForHarbor := transformUserDB2API(userDB)
+	oldUserForHarbor := transformUserDB2API(oldUser)
+	if len(newPassword) != 0 {
+		// don't need decrypt password for old user
+		// if new password isn't empty, it should be modify
+		userForHarbor.Password = newPassword
+	}
+	err = updateUserInHarbor(&oldUserForHarbor, &userForHarbor)
+	if err != nil {
+		glog.Errorf("update user in harbor failed, err: %v", err)
+		_ = o.Rollback()
+		return user, err
+	}
+
+	_ = o.Commit()
+
 	//userDB.Password = ""
 	userDB.Password, err = encrypt.Decrypt(userDB.Password, encrypt.CpabeType, encrypt.OpServiceRole)
 	if err != nil {
@@ -140,13 +190,35 @@ func UpdateUser(user *authapi.User) (*authapi.User, error) {
 }
 
 func DeleteUserByName(name string) error {
-	return authdb.DeleteUserByName(orm.NewOrm(), name)
+	var err error
+	o := orm.NewOrm()
+	err = o.Begin()
+	if err != nil {
+		return err
+	}
+
+	err = authdb.DeleteUserByName(o, name)
+	if err != nil {
+		glog.Errorf("delete user in db failed, user: %v, err: %v", name, err)
+		_ = o.Rollback()
+		return err
+	}
+
+	err = deleteUserInHarbor(name)
+	if err != nil {
+		glog.Errorf("delete user in harbor failed, user: %v, err: %v", name, err)
+		_ = o.Rollback()
+		return err
+	}
+
+	_ = o.Commit()
+	return nil
 }
 
 func CreateUser(user *authapi.User) (*authapi.User, error) {
 	var err error
 	user.UUID = uuid.NewV4().String()
-	user.Password, err = encrypt.Encrypt(user.Password, encrypt.CpabeType, encrypt.OpServiceRole)
+	encryptPassword, err := encrypt.Encrypt(user.Password, encrypt.CpabeType, encrypt.OpServiceRole)
 	if err != nil {
 		glog.Errorf("encrypt password failed for %v/%v, err: %v", user.Name, user.UUID, err)
 		return nil, err
@@ -160,12 +232,31 @@ func CreateUser(user *authapi.User) (*authapi.User, error) {
 		user.Role = DefaultRole
 	}
 
-	userDB := transformUserAPI2DB(*user)
-	userDB, err = authdb.CreateUser(orm.NewOrm(), userDB)
+	o := orm.NewOrm()
+	err = o.Begin()
 	if err != nil {
+		return user, err
+	}
+
+
+	userDB := transformUserAPI2DB(*user)
+	userDB.Password = encryptPassword
+	userDB, err = authdb.CreateUser(o, userDB)
+	if err != nil {
+		_ = o.Rollback()
 		glog.Errorf("create user[%v] failed, err: %v", user.Name, err)
 		return nil, err
 	}
+
+	err = createUserInHarbor(user)
+	if err != nil {
+		_ = o.Rollback()
+		glog.Errorf("create user[%v] in harbor failed, err: %v", user.Name, err)
+		return nil, err
+	}
+
+	_ = o.Commit()
+
 	//userDB.Password = ""
 	userDB.Password, err = encrypt.Decrypt(userDB.Password, encrypt.CpabeType, encrypt.OpServiceRole)
 	if err != nil {
