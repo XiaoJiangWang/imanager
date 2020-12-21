@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 
 	"github.com/golang/glog"
 
@@ -27,6 +28,13 @@ func authFilter(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.RequestURI == authapi.GetTokenURL && r.Method == authapi.GetTokenMethod {
 			glog.Infof("it should not verify the request which is for create token")
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		match, _ := regexp.MatchString(authapi.InitUserURL, r.RequestURI)
+		if match && r.Method == authapi.InitUserMethod {
+			glog.Infof("it should not verify the request which is for init user")
 			h.ServeHTTP(w, r)
 			return
 		}

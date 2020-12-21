@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/astaxie/beego/orm"
@@ -287,4 +288,74 @@ func ListUserByUserID(userIDs []string, query *dataselect.DataSelectQuery) ([]au
 	}
 	res := transformUserDBs2APIs(userInDBs)
 	return res, nums, nil
+}
+
+var PasswordRegexp  = "^[a-zA-Z0-9_-]{8,18}$"
+
+func InitUser(name string) (*authapi.User, error) {
+	var err error
+	o := orm.NewOrm()
+	err = o.Begin()
+	if err != nil {
+		return nil, err
+	}
+	user, err := authdb.GetUserByName(o, name)
+	if err != nil {
+		_ = o.Rollback()
+		glog.Errorf("get user from db failed, name: %v, err: %v", name, err)
+		return nil, err
+	}
+	isMatch, _ := regexp.MatchString(PasswordRegexp, user.Password)
+	if !isMatch {
+		_ = o.Rollback()
+		return nil, fmt.Errorf("user password doesn't match the format, maybe it already was encrypted, please check it in db")
+	}
+	user.Password, err = encrypt.Encrypt(user.Password, encrypt.CpabeType, encrypt.OpServiceRole)
+	if err != nil {
+		_ = o.Rollback()
+		glog.Errorf("encrypt password failed for %v/%v, err: %v", user.Name, user.UUID, err)
+		return nil, err
+	}
+	if len(user.UUID) == 0 {
+		user.UUID = uuid.NewV4().String()
+	}
+	user, err = authdb.UpdateUser(o, user)
+	if err != nil {
+		_ = o.Rollback()
+		glog.Errorf("update user[%v/%v] failed, err: %v", user.Name, user.UUID, err)
+		return nil, err
+	}
+	userApi := transformUserDB2API(user)
+	_ = o.Commit()
+	return &userApi, nil
+}
+
+func UnInitUser(name string) (*authapi.User, error) {
+	var err error
+	o := orm.NewOrm()
+	err = o.Begin()
+	if err != nil {
+		return nil, err
+	}
+	user, err := authdb.GetUserByName(o, name)
+	if err != nil {
+		_ = o.Rollback()
+		glog.Errorf("get user from db failed, name: %v, err: %v", name, err)
+		return nil, err
+	}
+	user.Password, err = encrypt.Decrypt(user.Password, encrypt.CpabeType, encrypt.OpServiceRole)
+	if err != nil {
+		_ = o.Rollback()
+		glog.Errorf("encrypt password failed for %v/%v, err: %v", user.Name, user.UUID, err)
+		return nil, err
+	}
+	user, err = authdb.UpdateUser(o, user)
+	if err != nil {
+		_ = o.Rollback()
+		glog.Errorf("update user[%v/%v] failed, err: %v", user.Name, user.UUID, err)
+		return nil, err
+	}
+	userApi := transformUserDB2API(user)
+	_ = o.Commit()
+	return &userApi, nil
 }

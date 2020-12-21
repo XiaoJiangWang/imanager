@@ -77,10 +77,10 @@ func GetUserByUUID(o orm.Ormer, uuid string) (User, error) {
 func UpdateUser(o orm.Ormer, user User) (User, error) {
 	var err error
 	var oldUser User
-	if user.UUID != "" {
-		oldUser, err = GetUserByUUID(o, user.UUID)
-	} else if user.Name != "" {
+	if user.Name != "" {
 		oldUser, err = GetUserByName(o, user.Name)
+	} else if user.UUID != "" {
+		oldUser, err = GetUserByUUID(o, user.UUID)
 	} else {
 		return user, fmt.Errorf("find user by name or uuid failed")
 	}

@@ -124,7 +124,7 @@ func validUserForCreateOrUpdate(user *authapi.User, isCreate bool, info *authapi
 	if isCreate || len(user.Name) != 0 {
 		isMatch, _ = regexp.MatchString(UserNameRegexp, user.Name)
 		if !isMatch {
-			return fmt.Errorf("user name don't match the format")
+			return fmt.Errorf("user name doesn't match the format")
 		}
 	}
 	if !isCreate && len(user.Name) == 0 && len(user.UUID) == 0 {
@@ -133,7 +133,7 @@ func validUserForCreateOrUpdate(user *authapi.User, isCreate bool, info *authapi
 	if isCreate || len(user.Password) != 0 {
 		isMatch, _ = regexp.MatchString(PasswordRegexp, user.Password)
 		if !isMatch {
-			return fmt.Errorf("user password don't match the format")
+			return fmt.Errorf("user password doesn't match the format")
 		}
 		hasLower := regexp.MustCompile(`[a-z]`)
 		hasUpper := regexp.MustCompile(`[A-Z]`)
@@ -145,19 +145,19 @@ func validUserForCreateOrUpdate(user *authapi.User, isCreate bool, info *authapi
 	if isCreate || len(user.TruthName) != 0 {
 		isMatch, _ = regexp.MatchString(UserTruthNameRegexp, user.TruthName)
 		if !isMatch {
-			return fmt.Errorf("user truth name don't match the format")
+			return fmt.Errorf("user truth name doesn't match the format")
 		}
 	}
 	if isCreate || len(user.Email) != 0 {
 		isMatch, _ = regexp.MatchString(EmailRegexp, user.Email)
 		if !isMatch {
-			return fmt.Errorf("user email don't match the format")
+			return fmt.Errorf("user email doesn't match the format")
 		}
 	}
 	if isCreate || len(user.PhoneNum) != 0 {
 		isMatch, _ = regexp.MatchString(PhoneNumRegexp, user.PhoneNum)
 		if !isMatch {
-			return fmt.Errorf("user phone num don't match the format")
+			return fmt.Errorf("user phone num doesn't match the format")
 		}
 	}
 
@@ -368,6 +368,50 @@ func (c AuthController) ListUser(w http.ResponseWriter, r *http.Request) {
 	})
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(respBody)
+}
+
+func (c AuthController) InitUser(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	if len(name) == 0 {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, "user name is empty")
+		return
+	}
+	_, err := authsvc.InitUser(name)
+	if err == orm.ErrNoRows {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusNotFound, "user isn't exist")
+		return
+	}
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("encrypt user[%v] failed, %v", name, err))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (c AuthController) UnInitUser(w http.ResponseWriter, r *http.Request) {
+	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
+	if err != nil {
+		glog.Errorf("get user info from header failed, err: %v", err)
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// only op service can unInit user
+	if !authapi.GetLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to unInit user")
+		return
+	}
+
+	name := mux.Vars(r)["name"]
+	if len(name) == 0 {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, "user name is empty")
+		return
+	}
+	_, err = authsvc.UnInitUser(name)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("encrypt user[%v] failed, %v", name, err))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 var (

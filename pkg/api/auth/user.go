@@ -1,6 +1,13 @@
 package auth
 
-import "imanager/pkg/api/util"
+import (
+	"net/http"
+
+	"imanager/pkg/api/util"
+)
+
+const InitUserURL = "/v1/auth/user/[a-zA-Z0-9-]{4,64}/init"
+const InitUserMethod = http.MethodPut
 
 type User struct {
 	UUID           string       `json:"uuid"`
