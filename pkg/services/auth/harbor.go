@@ -214,12 +214,14 @@ func searchUserInHarborByUserName(username string, token string) (int, error) {
 		if len(tmp) == 0 {
 			return 0, fmt.Errorf("the user[%v] isn't exist in harbor", username)
 		}
-		if len(tmp) != 1 {
-			glog.Errorf("too many users in harbor, the num is %v, username: %v", len(tmp), username)
-			return 0, fmt.Errorf("too many users in harbor")
+		for _, userInHarbor := range tmp {
+			if userInHarbor.Username == username {
+				glog.Infof("user[%v] id in harbor is %v", username, userInHarbor.UserID)
+				return userInHarbor.UserID, nil
+			}
+			glog.Errorf("not found user in harbor, the num is %v, username: %v", len(tmp), username)
+			return 0, fmt.Errorf("the user[%v] isn't exist in harbor", username)
 		}
-		glog.Infof("user[%v] id in harbor is %v", username, tmp[0].UserID)
-		return tmp[0].UserID, nil
 	}
 
 	var errorMessage authapi.ErrorMessageInHarbor

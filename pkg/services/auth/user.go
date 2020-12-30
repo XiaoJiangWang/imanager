@@ -167,9 +167,12 @@ func UpdateUser(user *authapi.User) (*authapi.User, error) {
 	userForHarbor := transformUserDB2API(userDB)
 	oldUserForHarbor := transformUserDB2API(oldUser)
 	if len(newPassword) != 0 {
-		// don't need decrypt password for old user
-		// if new password isn't empty, it should be modify
 		userForHarbor.Password = newPassword
+		oldUserForHarbor.Password, err = encrypt.Decrypt(oldUserForHarbor.Password, encrypt.CpabeType, encrypt.OpServiceRole)
+		if err != nil {
+			glog.Errorf("encrypt old user password for harbor failed for %v/%v, err: %v", user.Name, user.UUID, err)
+			return nil, err
+		}
 	}
 	err = updateUserInHarbor(&oldUserForHarbor, &userForHarbor)
 	if err != nil {
