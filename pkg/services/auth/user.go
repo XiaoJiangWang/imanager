@@ -88,13 +88,14 @@ func IsAllowUserUpdate(user *authapi.User, info *authapi.RespToken) error {
 	return nil
 }
 
-func GetUserByUUID(uuid string) (*authdb.User, error) {
+func GetUserByUUID(uuid string) (*authapi.User, error) {
 	o := orm.NewOrm()
 	user, err := authdb.GetUserByUUID(o, uuid)
 	if err != nil {
 		return nil, err
 	}
-	return &user, nil
+	userApi := transformUserDB2API(user)
+	return &userApi, nil
 }
 
 func GetUserByName(name string) (*authapi.User, error) {

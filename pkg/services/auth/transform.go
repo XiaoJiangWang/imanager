@@ -78,27 +78,71 @@ func transformUserDBs2APIs(input []authdb.User) []authapi.User {
 }
 
 func transformGroupDB2API(in authdb.Group) authapi.Group {
-	return authapi.Group{
+	res := authapi.Group{
 		ID:         in.Id,
 		Name:       in.Name,
 		Annotation: in.Annotation,
+		Builtin:    in.Builtin,
 		BaseModel: apiutil.BaseModel{
 			CreateTimestamp: in.CreateTimestamp,
 			UpdateTimestamp: in.UpdateTimestamp,
 		},
 	}
+	if in.Role != nil && len(in.Role) != 0 {
+		res.Role = make([]authapi.RoleInGroup, 0, len(in.Role))
+		for _, role := range in.Role {
+			res.Role = append(res.Role, authapi.RoleInGroup{
+				ID:         role.Id,
+				Name:       role.Name,
+				Annotation: role.Annotation,
+			})
+		}
+	}
+	if in.User != nil && len(in.User) != 0 {
+		res.User = make([]authapi.UserInGroup, 0, len(in.User))
+		for _, user := range in.User {
+			res.User = append(res.User, authapi.UserInGroup{
+				ID:   user.ID,
+				UUID: user.UUID,
+				Name: user.Name,
+			})
+		}
+	}
+	return res
 }
 
 func transformGroupAPI2DB(in authapi.Group) authdb.Group {
-	return authdb.Group{
+	res := authdb.Group{
 		Id:         in.ID,
 		Name:       in.Name,
 		Annotation: in.Annotation,
+		Builtin:    in.Builtin,
 		BaseModel: dbutil.BaseModel{
 			CreateTimestamp: in.CreateTimestamp,
 			UpdateTimestamp: in.UpdateTimestamp,
 		},
 	}
+	for in.User != nil && len(in.User) != 0 {
+		res.User = make([]*authdb.User, 0, len(in.User))
+		for _, user := range in.User {
+			res.User = append(res.User, &authdb.User{
+				ID:   user.ID,
+				UUID: user.UUID,
+				Name: user.Name,
+			})
+		}
+	}
+	for in.Role != nil && len(in.Role) != 0 {
+		res.Role = make([]*authdb.Role, 0, len(in.Role))
+		for _, role := range in.Role {
+			res.Role = append(res.Role, &authdb.Role{
+				Id:         role.ID,
+				Name:       role.Name,
+				Annotation: role.Annotation,
+			})
+		}
+	}
+	return res
 }
 
 func transformGroupDBs2APIs(in []authdb.Group) []authapi.Group {

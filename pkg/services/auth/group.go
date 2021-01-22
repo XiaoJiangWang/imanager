@@ -11,13 +11,14 @@ import (
 	authdb "imanager/pkg/db/auth"
 )
 
-func GetGroupByID(id int) (*authdb.Group, error) {
+func GetGroupByID(id int) (*authapi.Group, error) {
 	o := orm.NewOrm()
 	group, err := authdb.GetGroupByID(o, id)
 	if err != nil {
 		return nil, err
 	}
-	return &group, nil
+	res := transformGroupDB2API(group)
+	return &res, nil
 }
 
 func ListGroup(query *dataselect.DataSelectQuery) ([]authapi.Group, int64, error) {
@@ -34,14 +35,14 @@ func ListGroup(query *dataselect.DataSelectQuery) ([]authapi.Group, int64, error
 	return res, nums, nil
 }
 
-func GetGroupByName(name string) (authapi.Group, error) {
+func GetGroupByName(name string) (*authapi.Group, error) {
 	group, err := authdb.GetGroupByName(orm.NewOrm(), name)
 	if err != nil {
 		glog.Errorf("get role failed, err: %v", err)
-		return authapi.Group{}, err
+		return nil, err
 	}
 	res := transformGroupDB2API(group)
-	return res, nil
+	return &res, nil
 }
 
 func CreateGroup(group *authapi.Group) (*authapi.Group, error) {
@@ -76,6 +77,9 @@ func DeleteGroupByName(name string) error {
 	}
 	if len(group.User) != 0 {
 		return fmt.Errorf("group is in use, can't delete")
+	}
+	if group.Builtin {
+		return fmt.Errorf("the buildin group can't delete")
 	}
 	return authdb.DeleteGroupByName(o, name)
 }

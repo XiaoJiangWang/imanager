@@ -117,7 +117,7 @@ func createUserInHarbor(user *authapi.User) error {
 	}
 
 	if resp.StatusCode == http.StatusCreated {
-		glog.Infof("create success")
+		glog.Infof("user create success in harbor, username: %v", user.Name)
 		return nil
 	}
 

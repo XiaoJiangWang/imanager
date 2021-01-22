@@ -194,6 +194,36 @@ func validUserForCreateOrUpdate(user *authapi.User, isCreate bool, info *authapi
 	return nil
 }
 
+func modifyUserForSpecialRole(user *authapi.User) error {
+	var err error
+	largestRolePermission := authapi.GetLargestRolePermission(user.Role)
+	switch largestRolePermission {
+	case authapi.OpServiceRole:
+		glog.Infof("user's role is changed to op_service, move user into OpServiceGroup")
+		user.Group = authsvc.OpServiceGroup
+	case authapi.AdminRole, authapi.UserRole:
+		if user.Group == nil {
+			var oldUser *authapi.User
+			if user.Name != "" {
+				oldUser, err = authsvc.GetUserByName(user.Name)
+			} else if user.UUID != "" {
+				oldUser, err = authsvc.GetUserByUUID(user.UUID)
+			} else {
+				return fmt.Errorf("find user by name or uuid failed")
+			}
+			if err != nil || oldUser == nil {
+				return err
+			}
+			user.Group = oldUser.Group
+		}
+		if user.Group.ID == authsvc.OpServiceGroup.ID {
+			glog.Infof("user's role is changed to op_service, move user from OpServiceGroup into DefaultGroup")
+			user.Group = authsvc.DefaultGroup
+		}
+	}
+	return nil
+}
+
 func (c AuthController) CreateUser(w http.ResponseWriter, r *http.Request) {
 	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
 	if err != nil {
@@ -219,6 +249,11 @@ func (c AuthController) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = validUserForCreateOrUpdate(user, true, info)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
+	err = modifyUserForSpecialRole(user)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
 		return
@@ -262,6 +297,11 @@ func (c AuthController) ModifyUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = validUserForCreateOrUpdate(user, false, info)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
+	err = modifyUserForSpecialRole(user)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
 		return
@@ -592,12 +632,15 @@ func validGroup(group *authapi.Group) error {
 	if !isMatch {
 		return fmt.Errorf("group name don't match the format")
 	}
-	if len(group.Annotation) > AnnotationMaxLen {
-		return fmt.Errorf("group annotation too long, max length is: %v", AnnotationMaxLen)
-	}
-	isMatch, _ = regexp.MatchString(AnnotationRegexp, group.Annotation)
-	if !isMatch {
-		return fmt.Errorf("group annotation don't match the format")
+	if len(group.Annotation) != 0 {
+		// allow annotation is empty
+		if len(group.Annotation) > AnnotationMaxLen {
+			return fmt.Errorf("group annotation too long, max length is: %v", AnnotationMaxLen)
+		}
+		isMatch, _ = regexp.MatchString(AnnotationRegexp, group.Annotation)
+		if !isMatch {
+			return fmt.Errorf("group annotation don't match the format")
+		}
 	}
 	return nil
 }
@@ -627,6 +670,11 @@ func (c AuthController) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if group.Builtin {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("group can't be buildin"))
+		return
+	}
+
 	err = validGroup(group)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
@@ -645,6 +693,26 @@ func (c AuthController) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	_, _ = w.Write(out)
+}
+
+func isAllowModifyGroup(group *authapi.Group) (bool, string, error) {
+	var err error
+	var oldGroup *authapi.Group
+	if group.Name != "" {
+		oldGroup, err = authsvc.GetGroupByName(group.Name)
+	} else if group.ID != 0 {
+		oldGroup, err = authsvc.GetGroupByID(group.ID)
+	} else {
+		return false, "", fmt.Errorf("find group by name or id failed")
+	}
+	if err != nil {
+		return false, "", err
+	}
+	if oldGroup.Builtin != group.Builtin {
+		return false, "the group's built-in flag cannot be changed", nil
+	}
+
+	return true, "", nil
 }
 
 func (c AuthController) ModifyGroup(w http.ResponseWriter, r *http.Request) {
@@ -674,6 +742,15 @@ func (c AuthController) ModifyGroup(w http.ResponseWriter, r *http.Request) {
 	err = validGroup(group)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, fmt.Sprintf("%v", err))
+		return
+	}
+	isAllowed, message, err := isAllowModifyGroup(group)
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("check group is allowed modify failed, %v", err))
+		return
+	}
+	if !isAllowed {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, message)
 		return
 	}
 
@@ -732,7 +809,7 @@ func (c AuthController) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := authsvc.GetGroupByName(name)
+	group, err := authsvc.GetGroupByName(name)
 	if err == orm.ErrNoRows {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "group isn't exist")
 		return
@@ -741,7 +818,7 @@ func (c AuthController) GetGroup(w http.ResponseWriter, r *http.Request) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("get group from db failed, %v", err))
 		return
 	}
-	out, err := json.Marshal(role)
+	out, err := json.Marshal(group)
 	if err != nil {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("marshal group failed, %v", err))
 		return

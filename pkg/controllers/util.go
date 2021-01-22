@@ -16,7 +16,7 @@ func getManageUserIDs(info *authapi.RespToken) []string {
 
 	baseRole := authapi.UserRole
 	for _, v := range user.Role {
-		role := authapi.RoleType(v.Id)
+		role := authapi.RoleType(v.ID)
 		if role == authapi.OpServiceRole {
 			// return all batch work
 			return []string{}
@@ -30,9 +30,9 @@ func getManageUserIDs(info *authapi.RespToken) []string {
 		return []string{info.UserID}
 	}
 
-	group, err:= authsvc.GetGroupByID(user.Group.Id)
+	group, err:= authsvc.GetGroupByID(user.Group.ID)
 	if err != nil {
-		glog.Errorf("get detail group by id failed, user: %v/%v, group id: %v, err: %v", info.Name, info.UserID, user.Group.Id, err)
+		glog.Errorf("get detail group by id failed, user: %v/%v, group id: %v, err: %v", info.Name, info.UserID, user.Group.ID, err)
 		return []string{info.UserID}
 	}
 

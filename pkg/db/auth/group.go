@@ -2,7 +2,6 @@ package auth
 
 import (
 	"fmt"
-
 	"github.com/astaxie/beego/orm"
 
 	"imanager/pkg/api/dataselect"
@@ -13,6 +12,7 @@ type Group struct {
 	Id             int     `json:"id" orm:"unique"`
 	Name           string  `json:"name" orm:"unique"`
 	Annotation     string  `json:"annotation"`
+	Builtin        bool    `json:"builtin"`
 	Role           []*Role `json:"role" orm:"rel(m2m)"`
 	User           []*User `orm:"reverse(many)"`
 	util.BaseModel `json:",inline"`
@@ -134,6 +134,18 @@ func ListGroup(o orm.Ormer, query *dataselect.DataSelectQuery) ([]Group, int64, 
 		return groups, num, err
 	}
 	_, err = origin.All(&groups)
+
+	for k, group := range groups {
+		_, err = o.LoadRelated(&group, "role")
+		if err != nil {
+			return groups, num, err
+		}
+		_, err = o.LoadRelated(&group, "user")
+		if err != nil {
+			return groups, num, err
+		}
+		groups[k] = group
+	}
 
 	return groups, num, err
 }
