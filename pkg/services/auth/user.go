@@ -262,12 +262,7 @@ func CreateUser(user *authapi.User) (*authapi.User, error) {
 
 	_ = o.Commit()
 
-	//userDB.Password = ""
-	userDB.Password, err = encrypt.Decrypt(userDB.Password, encrypt.CpabeType, encrypt.OpServiceRole)
-	if err != nil {
-		glog.Errorf("decrypt password failed for %v/%v, err: %v", user.Name, user.UUID, err)
-		return nil, err
-	}
+	userDB.Password = ""
 	newUser := transformUserDB2API(userDB)
 	return &newUser, nil
 }
@@ -283,12 +278,7 @@ func ListUserByUserID(userIDs []string, query *dataselect.DataSelectQuery) ([]au
 		return []authapi.User{}, 0, err
 	}
 	for k := range userInDBs {
-		//userInDBs[k].Password = ""
-		userInDBs[k].Password, err = encrypt.Decrypt(userInDBs[k].Password, encrypt.CpabeType, encrypt.OpServiceRole)
-		if err != nil {
-			glog.Errorf("decrypt password failed for %v/%v, err: %v", userInDBs[k].Name, userInDBs[k].UUID, err)
-			continue
-		}
+		userInDBs[k].Password = ""
 	}
 	res := transformUserDBs2APIs(userInDBs)
 	return res, nums, nil
@@ -362,4 +352,19 @@ func UnInitUser(name string) (*authapi.User, error) {
 	userApi := transformUserDB2API(user)
 	_ = o.Commit()
 	return &userApi, nil
+}
+
+func GetUserSecret(name string) (*authapi.UserSecret, error) {
+	o := orm.NewOrm()
+	user, err := authdb.GetUserByName(o, name)
+	if err != nil {
+		glog.Errorf("get user from db failed, name: %v, err: %v", name, err)
+		return nil, err
+	}
+	user.Password, err = encrypt.Decrypt(user.Password, encrypt.CpabeType, encrypt.OpServiceRole)
+	if err != nil {
+		glog.Errorf("decrypt password failed for %v/%v, err: %v", user.Name, user.UUID, err)
+		return nil, err
+	}
+	return &authapi.UserSecret{Password:user.Password}, nil
 }

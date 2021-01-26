@@ -12,7 +12,7 @@ const InitUserMethod = http.MethodPut
 type User struct {
 	UUID           string       `json:"uuid"`
 	Name           string       `json:"name"`
-	Password       string       `json:"password,omitempty"`
+	Password       string       `json:"-"`
 	TruthName      string       `json:"truth_name"`
 	Email          string       `json:"email"`
 	PhoneNum       string       `json:"phone_num"`
@@ -36,4 +36,8 @@ type GroupInUser struct {
 type UserList struct {
 	Count int64  `json:"count"`
 	Item  []User `json:"item,omitempty"`
+}
+
+type UserSecret struct {
+	Password string `json:"password"`
 }

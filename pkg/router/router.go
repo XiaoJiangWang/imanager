@@ -18,6 +18,7 @@ func RegisterRouter() http.Handler {
 	r.HandleFunc("/v1/auth/user/{name}", controllers.AuthController{}.DeleteUser).Methods(http.MethodDelete)
 	r.HandleFunc("/v1/auth/user", controllers.AuthController{}.ListUser).Methods(http.MethodGet)
 	r.HandleFunc("/v1/auth/user/{name}", controllers.AuthController{}.GetUser).Methods(http.MethodGet)
+	r.HandleFunc("/v1/auth/user/{name}/secret", controllers.AuthController{}.GetUserSecret).Methods(http.MethodGet)
 
 	r.HandleFunc("/v1/auth/role", controllers.AuthController{}.CreateRole).Methods(http.MethodPost)
 	r.HandleFunc("/v1/auth/role", controllers.AuthController{}.ModifyRole).Methods(http.MethodPut)

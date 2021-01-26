@@ -23,6 +23,7 @@ kubectl create -f imanager-service.yaml
 本地启动容器
 ```shell script
 docker run -it -p 8080:8080 10.5.26.86:8080/zjlab/cpabe:1.0 bash
+mkdir -p /home/zjlab/secret
 ```
 另开一个后端，将相关的密钥文件拷贝至容器内部
 ```shell script

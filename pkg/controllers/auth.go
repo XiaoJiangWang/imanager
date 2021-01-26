@@ -410,10 +410,44 @@ func (c AuthController) ListUser(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(respBody)
 }
 
+func (c AuthController) GetUserSecret(w http.ResponseWriter, r *http.Request) {
+	info, err := util.GetUserInfo(r.Header.Get(authapi.ParseInfo))
+	if err != nil {
+		glog.Errorf("get user info from header failed, err: %v", err)
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// only op service can get user's password
+	if !authapi.GetLargestRolePermission(info.Role).IsLargerPermission(authapi.OpServiceRole) {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "no permission to get user's password")
+		return
+	}
+
+	name := mux.Vars(r)["name"]
+	if len(name) == 0 {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "user name is empty")
+		return
+	}
+
+	userSecret, err := authsvc.GetUserSecret(name)
+	if err == orm.ErrNoRows {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusNotFound, "user isn't exist")
+		return
+	}
+	if err != nil {
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, fmt.Sprintf("get user[%v]'s password failed, %v", name, err))
+		return
+	}
+
+	respBody, _ := json.Marshal(userSecret)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(respBody)
+}
+
 func (c AuthController) InitUser(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	if len(name) == 0 {
-		util.ReturnErrorResponseInResponseWriter(w, http.StatusInternalServerError, "user name is empty")
+		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, "user name is empty")
 		return
 	}
 	_, err := authsvc.InitUser(name)
