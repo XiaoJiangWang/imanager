@@ -12,7 +12,7 @@ const InitUserMethod = http.MethodPut
 type User struct {
 	UUID           string       `json:"uuid"`
 	Name           string       `json:"name"`
-	Password       string       `json:"-"`
+	Password       string       `json:"password,omitempty"`
 	TruthName      string       `json:"truth_name"`
 	Email          string       `json:"email"`
 	PhoneNum       string       `json:"phone_num"`
