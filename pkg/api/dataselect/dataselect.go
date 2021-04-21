@@ -4,6 +4,7 @@ type DataSelectQuery struct {
 	PaginationQuery *PaginationQuery
 	SortQuery       *SortQuery
 	FilterQuery     *FilterQuery
+	AttrQuery       *FilterQuery
 }
 
 // PaginationQuery structure represents pagination settings

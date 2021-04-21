@@ -110,7 +110,7 @@ func CreateRole(o orm.Ormer, role Role) (Role, error) {
 func ListRole(o orm.Ormer, query *dataselect.DataSelectQuery) ([]Role, int64, error) {
 	roles := []Role{}
 	origin := o.QueryTable(Role{})
-	origin, num, err := util.PaserQuerySeter(origin, nil, query, roleExistKey, roleExistM2mForeignKey)
+	origin, num, err := util.ParseQuerySeter(origin, nil, query, roleExistKey, roleExistM2mForeignKey)
 	if err != nil {
 		return roles, num, err
 	}

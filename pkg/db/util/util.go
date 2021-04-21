@@ -13,7 +13,7 @@ type BaseModel struct {
 	UpdateTimestamp time.Time `json:"update_timestamp" orm:"column(update_timestamp);auto_now"`
 }
 
-func PaserQuerySeter(origin orm.QuerySeter, IDs []string, query *dataselect.DataSelectQuery, existKey map[string]bool, existM2mForeignKey map[string]string) (orm.QuerySeter, int64, error) {
+func ParseQuerySeter(origin orm.QuerySeter, IDs []string, query *dataselect.DataSelectQuery, existKey map[string]bool, existM2mForeignKey map[string]string) (orm.QuerySeter, int64, error) {
 	if existM2mForeignKey == nil {
 		existM2mForeignKey = make(map[string]string)
 	}
@@ -24,6 +24,15 @@ func PaserQuerySeter(origin orm.QuerySeter, IDs []string, query *dataselect.Data
 		for _, filter := range query.FilterQuery.FilterByList {
 			if existKey[filter.Property] {
 				origin = origin.Filter(filter.Property+"__contains", filter.Value)
+			} else if _, ok := existM2mForeignKey[filter.Property]; ok {
+				origin = origin.Filter(existM2mForeignKey[filter.Property], filter.Value)
+			}
+		}
+	}
+	if query != nil && query.AttrQuery != nil {
+		for _, filter := range query.AttrQuery.FilterByList {
+			if existKey[filter.Property] {
+				origin = origin.Filter(filter.Property, filter.Value)
 			} else if _, ok := existM2mForeignKey[filter.Property]; ok {
 				origin = origin.Filter(existM2mForeignKey[filter.Property], filter.Value)
 			}

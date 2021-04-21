@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/mux"
 
 	authapi "imanager/pkg/api/auth"
-	"imanager/pkg/controllers/paser"
+	"imanager/pkg/controllers/parse"
 	authsvc "imanager/pkg/services/auth"
 	"imanager/pkg/util"
 )
@@ -394,7 +394,7 @@ func (c AuthController) ListUser(w http.ResponseWriter, r *http.Request) {
 		util.ReturnErrorResponseInResponseWriter(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	dataSelect := paser.PaserDataSelectPathParameter(r)
+	dataSelect := parse.ParseDataSelectPathParameter(r)
 
 	resp, num, err := authsvc.ListUserByUserID(getManageUserIDs(info), dataSelect)
 	if err != nil {
@@ -646,7 +646,7 @@ func (c AuthController) GetRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c AuthController) ListRole(w http.ResponseWriter, r *http.Request) {
-	dataSelect := paser.PaserDataSelectPathParameter(r)
+	dataSelect := parse.ParseDataSelectPathParameter(r)
 	roles, num, err := authsvc.ListRole(dataSelect)
 	if err != nil {
 		glog.Errorf("list group failed, %v", err)
@@ -862,7 +862,7 @@ func (c AuthController) GetGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c AuthController) ListGroup(w http.ResponseWriter, r *http.Request) {
-	dataSelect := paser.PaserDataSelectPathParameter(r)
+	dataSelect := parse.ParseDataSelectPathParameter(r)
 	groups, num, err := authsvc.ListGroup(dataSelect)
 	if err != nil {
 		glog.Errorf("list group failed, %v", err)

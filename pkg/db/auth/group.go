@@ -129,7 +129,7 @@ func CreateGroup(o orm.Ormer, group Group) (Group, error) {
 func ListGroup(o orm.Ormer, query *dataselect.DataSelectQuery) ([]Group, int64, error) {
 	groups := []Group{}
 	origin := o.QueryTable(Group{})
-	origin, num, err := util.PaserQuerySeter(origin, nil, query, groupExistKey, groupExistM2mForeignKey)
+	origin, num, err := util.ParseQuerySeter(origin, nil, query, groupExistKey, groupExistM2mForeignKey)
 	if err != nil {
 		return groups, num, err
 	}

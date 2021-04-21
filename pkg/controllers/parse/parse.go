@@ -1,4 +1,4 @@
-package paser
+package parse
 
 import (
 	"net/http"
@@ -13,11 +13,12 @@ import (
 const (
 	sort         = "sortBy"
 	filter       = "filterBy"
+	attr         = "attrBy"
 	page         = "page"
 	itemsPerPage = "itemsPerPage"
 )
 
-func PaserDataSelectPathParameter(r *http.Request) *dataselect.DataSelectQuery {
+func ParseDataSelectPathParameter(r *http.Request) *dataselect.DataSelectQuery {
 	query := r.URL.Query()
 	if len(query) == 0 {
 		return nil
@@ -26,21 +27,22 @@ func PaserDataSelectPathParameter(r *http.Request) *dataselect.DataSelectQuery {
 	var paginationQuery *dataselect.PaginationQuery = nil
 	var sortQuery *dataselect.SortQuery = nil
 	if query[page] != nil && len(query[page]) >= 1 && query[itemsPerPage] != nil && len(query[itemsPerPage]) >= 1 {
-		paginationQuery = paserPaginationQuery(query[page][0], query[itemsPerPage][0])
+		paginationQuery = parsePaginationQuery(query[page][0], query[itemsPerPage][0])
 	}
 	if query[sort] != nil && len(query[sort]) >= 1 {
-		sortQuery = paserSortQuery(query[sort][0])
+		sortQuery = parseSortQuery(query[sort][0])
 	}
 	res := &dataselect.DataSelectQuery{
 		PaginationQuery: paginationQuery,
 		SortQuery:       sortQuery,
-		FilterQuery:     paserFilterQuery(query[filter]),
+		FilterQuery:     parseFilterQuery(query[filter]),
+		AttrQuery:       parseFilterQuery(query[attr]),
 	}
 
 	return res
 }
 
-func paserSortQuery(sortStr string) *dataselect.SortQuery {
+func parseSortQuery(sortStr string) *dataselect.SortQuery {
 	sortRaw := strings.Split(sortStr, ",")
 	if len(sortRaw) != 2 {
 		glog.Warningf("sortStr[%v] is not format", sortStr)
@@ -62,7 +64,7 @@ func paserSortQuery(sortStr string) *dataselect.SortQuery {
 	}
 }
 
-func paserFilterQuery(filterStrs []string) *dataselect.FilterQuery {
+func parseFilterQuery(filterStrs []string) *dataselect.FilterQuery {
 	if filterStrs == nil || len(filterStrs) == 0 {
 		return nil
 	}
@@ -81,7 +83,7 @@ func paserFilterQuery(filterStrs []string) *dataselect.FilterQuery {
 	return &dataselect.FilterQuery{FilterByList: filterList}
 }
 
-func paserPaginationQuery(page, itemsPerPage string) *dataselect.PaginationQuery {
+func parsePaginationQuery(page, itemsPerPage string) *dataselect.PaginationQuery {
 	pageInt, err := strconv.Atoi(page)
 	if err != nil {
 		glog.Warningf("transfer page failed, page: %v, err: %v", page, err)

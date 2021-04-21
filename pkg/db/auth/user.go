@@ -183,7 +183,7 @@ func CreateUser(o orm.Ormer, user User) (User, error) {
 func ListUsersByUserIDs(o orm.Ormer, userIDs []string, query *dataselect.DataSelectQuery) ([]User, int64, error) {
 	users := []User{}
 	origin := o.QueryTable(User{})
-	origin, num, err := util.PaserQuerySeter(origin, userIDs, query, userExistKey, userExistM2mForeignKey)
+	origin, num, err := util.ParseQuerySeter(origin, userIDs, query, userExistKey, userExistM2mForeignKey)
 	if err != nil {
 		return users, 0, err
 	}
